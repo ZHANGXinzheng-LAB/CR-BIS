@@ -1,2 +1,77 @@
-# CE-BIS
-CR-BIS: Continuous Recording Beam Image Shift Acquisition for Cryo-EM<br/>Version: 1.0<br/>Platform: SerialEM + Python (≥3.8)<br/>________________________________________<br/>Overview<br/>CR-BIS (Continuous Recording Beam Image Shift) is a data acquisition strategy for cryo-EM and cryo-ET that minimizes camera-induced delay and maximizes throughput.<br/>It extends the standard Beam Image Shift (BIS) method by continuously recording multiple target points in a single exposure, enabling up to 2–4× faster single-particle acquisition and ~3× faster tomographic collection without compromising image quality.<br/>This repository provides:<br/>•	SerialEM scripts for CR-BIS data acquisition<br/>•	Python preprocessing tools for frame splitting and metadata generation<br/>•	Example test datasets and reference parameters<br/>________________________________________<br/>Requirements<br/>Hardware<br/>•	Transmission Electron Microscope (e.g., Titan Krios)<br/>•	Direct Electron Detector (tested: Gatan K3, Falcon 4i)<br/>•	SerialEM control computer (Windows)<br/>Software<br/>Component	Version / Notes<br/>SerialEM	≥ 4.1<br/>Python	≥ 3.8<br/>MotionCor2	For frame alignment<br/>Warp / RELION / AreTomo1	Optional downstream processing<br/>________________________________________<br/>Repository Structure<br/>CR-BIS/<br/>│<br/>├── CR-BIS _scripts/<br/>│   ├── Report_Clock_script.txt				# Measure camera delay curve<br/>│   ├── tomo_script_20250824_clear.txt<br/>│   		├── parameter.txt                 # Core parameter configuration file<br/>│   		├── take_map.txt                  # Low-mag map acquisition<br/>│   		├── Tomo_group_V_p1.txt           # Pre-alignment script<br/>│   		├── Tomo_group_X.txt              # Main CR-BIS acquisition<br/>│   		├── reset_X.txt                   # Restore microscope settings<br/>│   └── file_checker.py # Additional control for the advance movement of stage<br/>│   <br/>├── CR-BIS_preprocess_script/<br/>│   ├── command.txt		# Basic command lines of preprocess for CR-BIS-Tomo<br/>│   ├── group_single_point_tif_MotionCorr2_parallel_v2_tiffile.py   <br/>│	 │		# Split and motion-correct TIF frames<br/>│   ├── tomo_log.txt       # Example output log file of CR-BIS-Tomo<br/>│   ├── log_extract_angle_and_name_v2.py <br/>│	 │		# Extract angle and image names from tomo_log.txt<br/>│   ├── tomo_log_extract.txt <br/>│	 │		# Example output txt file after running log_extract_angle_and_name_v2.py<br/>│   ├── group_tilt_series_v3.py #Group each tilt series based on tomo_log_extract.txt<br/>│   ├── output/   <br/>│   		├── Nav_##_point_?.txt 	<br/>│			│		# Output files after running group_tilt_series_v3.py<br/>│   		├── modi_nav_txt_batch.py <br/>│			│		# Modify the first 5 tilts images’ name in Nav.txt <br/>│   		├── modified_Nav##_point_?.txt <br/>│					# Output files after running modi_nav_txt_batch.py<br/>│   └── mdoc/ <br/>│   		├── modified_Nav##_point_?.txt<br/>│   		├── generate_mdoc_v2_setparameters_batch2.py<br/>│   		├── modified_Nav##_point_?.mdoc<br/>│<br/>└── CR-BIS_User_Guide_v1.0.pdf		# Full illustrated manual<br/>    <br/>________________________________________<br/>Basic Workflow<br/>Part 1 — Pre-Calibration<br/>1.	Use Report_Clock_script.txt to measure camera delay vs. exposure time.<br/>2.	Determine total exposure formula for your detector model (see guide).<br/>Part 2 — Data Acquisition in SerialEM<br/>1.	Configure parameters in parameter.txt.<br/>2.	Acquire low-magnification maps (take_map.txt).<br/>3.	Select target points in Navigator.<br/>4.	Run sequentially:<br/>o	Tomo_group_V_p1.txt (pre-alignment)<br/>o	Tomo_group_X.txt (CR-BIS data acquisition)<br/>Part 3 — Preprocessing<br/>1.	For TIF data:<br/>2.	python3 group_single_point_tif_MotionCorr2_parallel_v2_tiffile.py /path/to/raw_data<br/>3.	For EER data: convert to TIF using relion_convert_to_tiff_mpi, then run the same script.<br/>4.	For Cryo-ET: generate .mdoc files or tilt angle lists using make_tomo_mdoc.py.
+CR-BIS: Continuous Recording Beam Image Shift Acquisition for Cryo-EM
+Version: 2.0
+Platform: SerialEM + Python (≥3.4)
+
+Overview
+CR-BIS (Continuous Recording Beam Image Shift) is a data acquisition strategy for cryo-EM and cryo-ET that minimizes camera-induced delay and maximizes throughput.
+It extends the standard Beam Image Shift (BIS) method by continuously recording multiple target points in a single exposure, enabling up to 2–4× faster single-particle acquisition and ~3× faster tomographic collection without compromising image quality.
+This repository provides:
+    • SerialEM scripts for CR-BIS data acquisition
+    • Python preprocessing tools for frame splitting and metadata generation
+    • Example test datasets and reference parameters
+
+Requirements
+Hardware
+    • Transmission Electron Microscope (e.g., Titan Krios)
+    • Direct Electron Detector (tested: Gatan K3, Falcon 4i, Falcon4)
+    • SerialEM control computer (Windows)
+Software
+Component
+Version / Notes
+SerialEM
+≥ 4.1
+Python
+≥ 3.4
+MotionCor2
+For frame alignment
+Warp / RELION / AreTomo1
+Optional downstream processing
+
+Repository Structure
+CR-BIS/
+│
+├── CR-BIS _scripts_v2/
+│   ├── Report_Clock_script.txt				# Measure camera delay curve
+│   ├──np_81kx_20260112_script.txt
+│   		├── parameter                 # Core parameter configuration file
+│   		├── take_map                  # Low-mag map acquisition
+│   		├── Tomo_group_V_p1          # Pre-alignment script
+│   		├── Tomo_group_X             # Main CR-BIS acquisition
+│   		├── reset_X                    # Restore microscope settings
+│   └── file_checker.py # Additional control for the advance movement of stage
+│   
+├── data_process/
+│   ├── Falcon/		# Basic command lines of preprocess for CR-BIS-Tomo
+│   		├── calculate_sep_range_python34.py 	
+│			│		# calculate blank frame gap before splitting EER files
+│   		├── eer_writer_5_v4_py34.py
+│			│		# eer splitting script
+│   		├── tomo_log_edit.py
+│			│	# updated information from *log_sep.txt file and modifies tomo_log.txt
+│   		├── mdoc.py    # generate the .mdoc file for each tilt series
+│          └── tomo_log.txt  #  tomo_log.txt example
+│   └── K3/ 
+│   		├── group_single_point_tif_MotionCorr2_parallel_v2_tiffile.py
+│   		├── modi_tif_log,py
+│   		├── modi_tomo_log.py
+│          ├── mdoc.py
+│          └── tomo_log.txt  #  tomo_log.txt example
+└── CR-BIS_User_Guide_v2.0.pdf		# Full illustrated manual
+    
+
+Basic Workflow
+Part 1 — Pre-Calibration
+    1. Use Report_Clock_script.txt to measure total record time vs. exposure setting time.
+    2. Determine total exposure formula for your detector model (see guide).
+Part 2 — Data Acquisition in SerialEM
+    1. Configure parameters in parameter.txt.
+    2. Acquire low-magnification maps (take_map.txt).
+    3. Select target points in Navigator.
+    4. Run sequentially:
+        ◦ Tomo_group_V_p1.txt (pre-alignment)
+        ◦ Tomo_group_X.txt (CR-BIS data acquisition)
+Part 3 — Preprocessing
+    1. For TIF data:
+    2. python3 group_single_point_tif_MotionCorr2_parallel_v2_tiffile.py /path/to/raw_data
+    3. For EER data: python3 eer_writer_5_v4_py34.py frame_num
+    4. For Cryo-ET: generate .mdoc files based on tomo_log.txt using mdoc.py.
