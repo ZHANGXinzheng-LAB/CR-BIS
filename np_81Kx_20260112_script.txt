@@ -1,0 +1,5453 @@
+#Copyright (c) 2024-2026 Xinzheng Zhang, Xiaojun Huang & Qi Yang, Institute of Biophysics, Chinese Academy of Sciences, Beijing 100101, China
+
+#This software is provided for non-commercial academic research use **only**.
+#Commercial use, including but not limited to use in the development of commercial products or services, is strictly prohibited.
+
+#The software is protected by a pending patent application (202510925138.0).
+#Any party interested in obtaining a license for commercial use must contact the copyright holder for separate commercial licensing terms.
+
+#This software is distributed "AS IS", WITHOUT WARRANTY OF ANY KIND, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement. 
+#In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+#For academic non-commercial users: you are free to use, modify, and distribute this software for academic research purposes, provided that you cite the original paper (see [DOI or reference]) and retain this license notice in all copies or substantial portions of the software.
+
+MaxMacros	60
+Macro	0
+MacroName parameter
+
+#=====Tomo_group_X settings============
+#----General tomo and SPA setting-------------
+start_angle =  10       # first image stage tilt angle in degree
+exp_start_angle = 0   # expected first image stage tilt angle in degree
+min_angle =  -50   # minimum stage tilt angle of the whole data, > -66
+max_angle =  67     # maximum stage tilt angle of the whole data < 70
+step        =  3              #stage tilt step in degrees
+min_defocus = -1.5  #minimum defocus value
+max_defocus = -2.5    #maximum defocus value
+
+#----microscope and camera setting-------
+autoloader = 1     #set 1 for TEM with autoloader 
+                                 # 2 for not
+flash_CFEG = 1    #set 1 for TEM with CFEG
+                                 # 2 for not
+camera = 1    #set 1 for using Falcon4/4i camera for data collection
+                                       #2 for K3
+                                       #3 for Ceta
+
+#---------output data folder setting--------------
+#name of folder for saving frames 
+folder_name @= 20260112_81kx_Yt_fast_tomo
+
+# map output file path and 
+work_dir @=  Z:\user_data\$folder_name    
+
+# file path for saving frames, not Falcon or DE camera, e.g. K2/K3 camera only
+frame_dir @=  Z:\user_data\$folder_name   
+
+#--------data collection mode setting---------------
+data_mode =  1   #set 1 for dose sym tomography
+                                    #2 for one or two direction tomography 
+                                    # 3 Single particle tilt to fix angle for data collection
+                                    #4 Single particle tilt pair
+fast_mode = 1    # 1 for using fast mode, SET FAST MODE as well
+                               # 2 for not
+accurate_position = 1  #1 for aligning each point to reference in V, 2 for not
+use_focus_forZ = 2   #set 1 for focus every point to measure Z
+                                       #2 for not
+do_eucentric_fine = 1   #set 1 for do eucentric fine each group
+                        #2 for not
+                        #3 for do eucentric rough each group
+align_low_angle_only = 1   #1 for only align at first 4 tilts
+                                                   #2  for align at all tilts
+
+skip_value_limit  = 100   # Value of buffer mean count to skip, lower than this value will skip collection
+                                          #use "ReportMeanCounts" to check value
+
+backgroud_stage = 1   #1 for use file_checker for stage movement when imaging
+                                              #2 for not
+
+move_stage_instead_IS  = 2   # 1 for only moving stage, 2 for using image shift besides stage
+
+
+#------multi shot per hole for SPA setting-----
+in_hole_distance = 0    # distance away from the selected point in micrometer, only for SPA, not for tomography and tilt pair
+in_hole_num = 1            # num of image taken around the  selected point, only for SPA, not for tomography and tilt pair
+in_hole_start_angle = 0         # angle for the first point away from selected point, the only for SPA, not for tomography and tilt pair
+
+#-------FAST MODE setting-------
+R_delay = 0.91    # exposure time for Record mode in FAST mode
+blank_delay = 0.72    # delay time in sec for the beginning of continous record mode
+ObjVsISmatrix = { -0.000002  -0.000006  0.000009  0.000048 }   #do Focus/Tune -> "Calibrate Coma vs Image Shift" and cope the output ObjVsISmatrix in log 
+
+#---preset----
+tilttimes    =  200        #maximum loop number
+Tiltbacklash = -3    #negative tilts will be backlashed, must be negative value
+Driftcrit = 10              #drift speed limit  in Angstrom/second
+Drifttimes = 5         #maximum number of drift measurements before skipping
+Driftinterval = 10     #wait time between drift measurements in seconds, one round of autofocus takes about 10 sec
+max_point_in_group = 100 # Maximum Number of Points per Group
+tracking_Vswitch =  80    # exceed the value in nm , use V instead of T for tracking
+tracking_afterR_Zlimit =  0.12   # exceed the value of stage Z/focus in um, ignore correction
+tracking_afterR_Xlimit =  0.1   # exceed the value of stage X in um, ignore correction
+Z_correct = 0     
+#AbsoluteFocusLimits -10 10   #prevent runaway focus
+#FocusChangeLimits -2 2          #prevent runaway focus
+
+if $fast_mode  == 1
+   SetExposure R $R_delay 
+Endif 
+
+if $data_mode == 1 or $data_mode == 2 or $data_mode == 4
+ if $min_angle > $max_angle 
+  temp_angle = $min_angle 
+  min_angle = $max_angle 
+  max_angle = $temp_angle 
+ Endif 
+elseif $data_mode == 3
+ step = 3
+ min_angle = $start_angle - 3 + 1
+ max_angle = $start_angle  + 3 - 1
+Endif 
+
+if $data_mode == 1 or $data_mode == 2
+   in_hole_distance = 0
+   in_hole_num = 1
+Endif 
+
+if $min_defocus < $max_defocus 
+   temp_angle = $max_defocus 
+   max_defocus = $min_defocus 
+   min_defocus = $temp_angle 
+Endif 
+
+j = 0
+in_hole_step = 360 / $in_hole_num
+in_hole_serial = { 0 }
+Loop $in_hole_num
+    in_hole_x = $in_hole_distance * ( cos ( $in_hole_start_angle + $in_hole_step * $j ) )
+    in_hole_serial = { $in_hole_serial $in_hole_x  }
+    in_hole_y = $in_hole_distance * ( sin ( $in_hole_start_angle + $in_hole_step * $j ) )
+    in_hole_serial = { $in_hole_serial $in_hole_y  }
+    j = $j + 1
+EndLoop 
+echo $in_hole_serial 
+#=====Tomo_group_X settings end========
+
+#=====Tomo_group_V settings============
+note_1 @= 1
+note_2 @= 2
+resetIS_times =  5
+resetIS_limit =  20
+
+check_delay = 3
+use_V = 1
+#=====Tomo_group_V settings end========
+
+#=====take_map settings============
+
+resetStage_times = 5
+resetStage_limit = 100
+
+#=====take_map settings end========
+
+SetImageShift 0 0
+
+SuppressReports 
+NoMessageBoxOnError
+Require variable1
+
+Try 
+   SetDirectory $work_dir 
+   if $camera == 1
+      SetFolderForFrames $folder_name 
+   ElseIf $camera == 2
+       SetFolderForFrames $frame_dir 
+    Endif 
+Catch 
+   MakeDirectory $work_dir 
+   SetDirectory $work_dir 
+   if $camera == 1
+      SetFolderForFrames $folder_name 
+    ElseIf $camera == 2
+       SetFolderForFrames $frame_dir 
+    Endif 
+EndTry 
+EndMacro
+Macro	1
+MacroName take_map
+
+CallMacro 1
+
+#ReportNavItem 
+#current_lable = $navLabel
+
+#Search 
+#Copy A P
+#CallFunction take_map::save_image
+
+SetExposure V 0.5
+SetBinning V 4
+Eucentricity 1
+UpdateItemZ 
+
+RestoreCameraSet V
+
+#CallFunction take_map::reset_stage
+
+if $start_angle > 0
+   Try 
+         TiltTo $start_angle 
+      Catch 
+         Delay 1 sec
+         TiltTo $start_angle 
+      EndTry 
+Else
+   TiltTo $start_angle 
+Endif 
+
+#===============
+Function reset_stage
+
+   Loop $resetStage_times index
+      Search 
+      AlignTo P 1 
+      ReportAlignShift
+      dx = $reportedValue5
+      dy = $reportedValue6
+      dist = sqrt $dx * $dx + $dy * $dy
+
+      If $dist < $resetStage_limit 
+         echo resetimage shift error $dist  nm
+         break
+      ElseIf $index < $resetStage_times 
+         echo $dist 
+      Else
+         echo resetIS never got below $resetStage_limit nm, Skipping........
+      Endif 
+
+    new_X = $reportedValue5 * 0.001
+    new_Y = $reportedValue6 * 0.001
+
+    MoveStage $new_X $new_Y 
+ EndLoop 
+
+EndFunction 
+
+Function save_image
+   filename @= Smap_item$current_lable.mrc
+   RemoveFile $filename 
+   SaveToOtherFile A MRC CUR $filename
+
+EndFunction 
+EndMacro
+Macro	2
+MacroName Tomo_group_V_p1
+
+CallMacro 1
+
+ReportNavItem
+if ($reportedValue5 == 1)
+   Pause When running P1, Please remove "AF" after "polygen"; otherwise, it will cause the map to be lost. Please stop and check the Nav file.
+Endif
+
+ReportNavItem 
+current_index = $reportedValue1
+current_X = $reportedValue2
+current_Y = $reportedValue3
+current_Z = $reportedValue4
+current_note = $navNote
+current_lable = $navLabel
+item_type = $reportedValue5
+
+if $item_type == 2
+   CallFunction Tomo_group_V_p1::save_map_center
+ElseIf $item_type == 0
+   ReportGroupStatus
+   if $reportedValue1 == 1
+      CallFunction Tomo_group_V_p1::read_map_center
+      CallFunction Tomo_group_V_p1::map_search
+      CallFunction Tomo_group_V_p1::load_map
+      ChangeItemNote $current_index 1
+      CallFunction Tomo_group_V_p1::add_new_point_1
+   ElseIf $reportedValue1 == 2 AND $move_stage_instead_IS  == 2
+      CallFunction Tomo_group_V_p1::load_map
+      ChangeItemNote $current_index 2
+      CallFunction Tomo_group_V_p1::add_new_point_2
+   ElseIf  $reportedValue1 == 2 AND $move_stage_instead_IS  == 1 AND ( $data_mode == 1 OR $data_mode == 2  OR $data_mode == 4  )
+      CallFunction Tomo_group_V_p1::load_map
+      ChangeItemNote $current_index 1
+      CallFunction Tomo_group_V_p1::add_new_point_1
+   ElseIf  $reportedValue1 == 2 AND $move_stage_instead_IS  == 1 AND  $data_mode == 3
+      CallFunction Tomo_group_V_p1::load_map
+      ChangeItemNote $current_index 2
+      CallFunction Tomo_group_V_p1::add_new_point_2
+   Endif 
+
+   CallFunction Tomo_group_V_p1::save_image
+
+Endif 
+
+#-----functions-----
+Function resetIS
+V
+Copy A P
+Loop $resetIS_times  index
+   ResetImageShift 
+   Delay 2 SEC
+   V
+   AlignTo P
+
+   ReportAlignShift
+   dx = $reportedValue3
+   dy = $reportedValue4
+   dist = sqrt $dx * $dx + $dy * $dy
+ 
+   If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist 
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+   Endif 
+EndLoop 
+
+EndFunction 
+
+Function add_new_point_1
+#ReportStageXYZ 
+#current_X = $reportedValue1
+#current_Y = $reportedValue2
+#current_Z = $reportedValue3
+
+AddStagePosAsNavPoint $current_X $current_Y $current_Z 1
+new_point_index = $reportedValue1 
+ChangeItemNote $new_point_index 1
+ChangeItemLabel $new_point_index $current_lable 
+SetItemAcquire $new_point_index 1
+
+EndFunction 
+
+Function add_new_point_2
+#ReportStageXYZ 
+#current_X = $reportedValue1
+#current_Y = $reportedValue2
+#current_Z = $reportedValue3
+
+AddStagePosAsNavPoint $current_X $current_Y $current_Z 1
+new_point_index = $reportedValue1 
+ChangeItemNote $new_point_index 2
+ChangeItemLabel $new_point_index $current_lable 
+
+EndFunction 
+
+Function save_image
+   filename @= map_item$current_lable.mrc
+   RemoveFile $filename 
+   SaveToOtherFile A MRC CUR $filename
+
+EndFunction 
+
+
+Function save_map_center
+    filename @= map_info.txt
+   OpenTextFile map_center T 0 $filename 
+   if $reportedValue1 == 0
+      OpenTextFile map_center W 0 $filename 
+      WriteLineToFile map_center $current_index $current_X $current_Y
+   ElseIf $reportedValue1 == 1
+      CloseTextFile map_center 
+      OpenTextFile map_center A 0 $filename 
+      WriteLineToFile map_center $current_index $current_X $current_Y
+   Else
+      echo got it
+   Endif 
+   FlushTextFile map_center 
+   CloseTextFile map_center 
+EndFunction 
+
+Function read_map_center
+  map_center_var = {0 }
+   filename @= map_info.txt
+   OpenTextFile map_center T 0 $filename 
+   CloseTextFile map_center 
+
+   If $reportedValue1 == 1
+      OpenTextFile map_center R 0 $filename 
+      Loop 100
+         ReadLineToArray map_center one_map_center 
+         
+         if $reportedValue1 == 0
+            Break 
+         Endif 
+         map_center_var = {$map_center_var $one_map_center}
+      EndLoop 
+   Endif 
+  map_num =  ( $#map_center_var - 1 ) / 3
+EndFunction 
+
+Function map_search
+   start_map_num = 1
+
+   loop $map_num 
+        start_map_num = $start_map_num + 1
+      map_index = $map_center_var[$start_map_num]
+        start_map_num = $start_map_num + 1
+      map_x = $map_center_var[$start_map_num]
+        start_map_num = $start_map_num + 1
+      map_y = $map_center_var[$start_map_num]
+
+      dx = $current_X - $map_x 
+      dy = $current_Y - $map_y
+      dist = sqrt $dx * $dx + $dy * $dy
+      if $start_map_num == 4
+         dist_min = $dist 
+         target_map_index = $map_index 
+      elseif $dist < $dist_min 
+         dist_min = $dist 
+         target_map_index = $map_index
+      Endif 
+   EndLoop 
+   echo load_map index $target_map_index 
+   LoadOtherMap $target_map_index E
+EndFunction 
+
+Function load_map
+   move_stage = 0
+   ImageProperties  E
+   map_size_x = $reportedValue1 
+   map_size_y = $reportedValue2
+   binning = $reportedValue3
+   #echo $map_size_x $map_size_y $binning 
+   crop_offset = ( 4096 / $binning  ) / 2
+
+   StagePosToBufImagePos E 1 $current_X $current_Y center_x center_y
+   crop_x0 = $center_x - $crop_offset 
+   crop_x1 = $center_x + $crop_offset 
+   crop_y0 = $center_y - $crop_offset 
+   crop_y1 = $center_y + $crop_offset 
+
+   if $map_size_x < $crop_x1 
+      move_stage = $move_stage  + 1
+   ElseIf  $map_size_y < $crop_y1
+      move_stage = $move_stage  + 1
+   ElseIf  $crop_x0 < 0 
+      move_stage = $move_stage  + 1
+   ElseIf  $crop_y0 < 0 
+      move_stage = $move_stage  + 1
+   Else
+     echo $map_size_x $crop_x1 
+     echo $map_size_y $crop_y1
+   Endif 
+
+   echo $crop_x0 $crop_x1 $crop_y0 $crop_y1 
+   echo $map_size_x $map_size_y 
+
+   if $move_stage == 0
+      CropImage E $crop_x0 $crop_x1 $crop_y0 $crop_y1 
+   Else
+      echo do realign to nav item 
+      RealignToNavItem 0 0 1000 1 1
+      V
+   Endif 
+EndFunction 
+EndMacro
+Macro	3
+MacroName Tomo_group_V_p2
+
+CallMacro 1
+
+ReportNavItem 
+current_index = $reportedValue1
+current_X = $reportedValue2
+current_Y = $reportedValue3
+current_Z = $reportedValue4
+current_note = $navNote
+current_lable = $navLabel
+item_type = $reportedValue5
+
+MoveStageTo $current_X $current_Y $current_Z 
+
+if  $move_stage_instead_IS  == 1
+       Eucentricity 2
+       UpdateItemZ
+       ReportNavItem 
+       current_Z = $reportedValue4
+Endif 
+
+TiltTo $start_angle 
+
+   filename @= map_item$current_lable.mrc
+   ReadOtherFile 0 P $filename
+   echo read file $filename
+
+   V
+CallFunction Tomo_group_V_p2::resetIS_1
+
+CallFunction Tomo_group_V_p2::add_new_point_1
+
+GoToLowDoseArea  R
+ReportMagIndex mag_index
+SpecimenToISMatrix $mag_index
+IS_xpx = -1 * $reportedValue1
+IS_xpy = -1 * $reportedValue2
+IS_ypx = -1 * $reportedValue3
+IS_ypy = -1 * $reportedValue4
+ISToSpecimenMatrix $mag_index
+SPS_xpx = -1 * $reportedValue1
+SPS_xpy = -1 * $reportedValue2
+SPS_ypx = -1 * $reportedValue3
+SPS_ypy = -1 * $reportedValue4
+ReportObjectiveStigmator stigma_ori_X stigma_ori_Y 
+ReportBeamTilt current_coma_ori_X current_coma_ori_Y 
+ReportSpecimenShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+OnStopCallFunc Tomo_group_V_p2::reset_all
+
+i = 1
+Loop 50  
+    next_index = $current_index + $i
+
+    Try 
+        ReportOtherItem $next_index 
+        next_X = $reportedValue2
+        next_Y = $reportedValue3
+        next_note = $navNote
+        next_lable = $navLabel
+       if $next_note == $current_note
+             echo touch next group at $next_index
+            Break 
+       Endif 
+    Catch 
+        echo touch next group at $next_index
+        Break 
+     EndTry 
+
+     CallFunction Tomo_group_V_p2::read_image
+
+
+    stage_X =  ( $next_X - $current_X )
+    stage_Y =  ( $next_Y - $current_Y ) * ( cos  $start_angle )
+
+       IS_X  = $stage_X * $IS_xpx + $stage_Y * $IS_xpy + $Isxplus
+       IS_Y = $stage_X * $IS_ypx + $stage_Y * $IS_ypy + $Isyplus
+
+#       echo IS_1 $next_X $next_Y 
+
+    SetImageShift $IS_X $IS_Y 1 1
+
+    if $use_V == 1
+        V
+    Else
+       T
+   Endif 
+   Delay 1 SEC
+   AlignTo P 1
+   Delay 1 SEC
+    ReportAlignShift
+#    echo align shift $reportedValue5 $reportedValue6
+    new_X = $next_X + $reportedValue5 * 0.001
+    new_Y = $next_Y + $reportedValue6 * 0.001
+
+#    echo IS_2 $new_X $new_Y 
+
+   CallFunction Tomo_group_V_p2::add_new_point_2
+
+i = $i + 1
+EndLoop 
+CallFunction Tomo_group_V_p2::reset_all
+
+
+#-----functions-----
+Function reset_all
+   GoToLowDoseArea R
+     SetObjectiveStigmator $stigma_ori_X $stigma_ori_Y
+     SetBeamTilt $current_coma_ori_X $current_coma_ori_Y
+     SetImageShift 0 0
+#     TiltTo 0
+EndFunction 
+
+Function read_image
+   filename @= map_item$next_lable.mrc
+   ReadOtherFile 0 P $filename
+   echo read file $filename
+EndFunction 
+
+Function resetIS_1
+Loop $resetIS_times  index
+   ResetImageShift 
+   Delay 2 SEC
+   V
+   AlignTo P
+
+   ReportAlignShift
+   dx = $reportedValue3
+   dy = $reportedValue4
+   dist = sqrt $dx * $dx + $dy * $dy
+ 
+   If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist 
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+   Endif 
+EndLoop 
+
+EndFunction 
+
+Function add_new_point_1
+
+AddStagePosAsNavPoint $current_X $current_Y $current_Z 1
+new_point_index = $reportedValue1 
+ChangeItemNote $new_point_index 1
+SetItemAcquire $new_point_index 1
+ChangeItemLabel $new_point_index $current_lable 
+
+EndFunction 
+
+Function add_new_point_2
+
+AddStagePosAsNavPoint $new_X $new_Y $current_Z 1
+new_point_index = $reportedValue1 
+ChangeItemNote $new_point_index 2
+ChangeItemLabel $new_point_index $next_lable 
+
+EndFunction 
+
+Function save_map_center
+    filename @= map_info.txt
+   OpenTextFile map_center T 0 $filename 
+   CloseTextFile map_center 
+   if $reportedValue1 == 0
+      OpenTextFile map_center W 0 $filename 
+      WriteLineToFile map_center $current_index $current_X $current_Y
+   ElseIf $reportedValue1 == 1
+      OpenTextFile map_center A 0 $filename 
+      WriteLineToFile map_center $current_index $current_X $current_Y
+   Else
+      echo got it
+   Endif 
+   FlushTextFile map_center 
+   CloseTextFile map_center 
+EndFunction 
+
+Function read_map_center
+  map_center_var = {0 }
+   filename @= map_info.txt
+   OpenTextFile map_center T 0 $filename 
+   CloseTextFile map_center 
+
+   If $reportedValue1 == 1
+      OpenTextFile map_center R 0 $filename 
+      Loop 100
+         ReadLineToArray map_center one_map_center 
+         
+         if $reportedValue1 == 0
+            Break 
+         Endif 
+         map_center_var = {$map_center_var $one_map_center}
+      EndLoop 
+   Endif 
+  map_num =  ( $#map_center_var - 1 ) / 3
+EndFunction 
+
+Function map_search
+   start_map_num = 1
+
+   loop $map_num 
+        start_map_num = $start_map_num + 1
+      map_index = $map_center_var[$start_map_num]
+        start_map_num = $start_map_num + 1
+      map_x = $map_center_var[$start_map_num]
+        start_map_num = $start_map_num + 1
+      map_y = $map_center_var[$start_map_num]
+
+      dx = $current_X - $map_x 
+      dy = $current_Y - $map_y
+      dist = sqrt $dx * $dx + $dy * $dy
+      if $start_map_num == 4
+         dist_min = $dist 
+         target_map_index = $map_index 
+      elseif $dist < $dist_min 
+         dist_min = $dist 
+         target_map_index = $map_index
+      Endif 
+   EndLoop 
+   echo load_map index $target_map_index 
+EndFunction 
+EndMacro
+Macro	4
+MacroName Tomo_group_X_bck
+
+CallMacro 1
+
+#create angle serial
+angle_serial = {$start_angle }
+P_align = {0 }
+P_align_X = {0 }
+M_align = {0 }
+M_align_X = {0 }
+
+if $data_mode == 1
+  k = 1
+  Loop $tilttimes
+    #tilt plus1
+     tiltangle = $start_angle + $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+    Endif 
+    #tilt min1
+      tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+     Endif 
+    k = $k + 1
+    #tilt min2
+     tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+     Endif 
+    #tilt plus2
+      tiltangle = $start_angle +  $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+    Endif 
+    k = $k + 1
+  EndLoop
+ElseIf $data_mode == 2 or $data_mode == 3
+  #tilt plus
+  k = 1
+  Loop $tilttimes
+     tiltangle = $start_angle + $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+    Endif 
+    k = $k + 1
+  EndLoop
+
+  #tilt min
+  k = 1
+  Loop $tilttimes
+     tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+     Endif 
+    k = $k + 1
+  EndLoop
+endif
+
+echo $angle_serial
+#---before data collection----
+ReportNavItem 
+current_index = $reportedValue1
+current_X = $reportedValue2
+current_Y = $reportedValue3
+current_Z = $reportedValue4
+current_note = $navNote
+current_lable = $navLabel
+
+MoveStageTo $current_X $current_Y $current_Z 
+
+if $do_eucentric_fine  == 1
+       Eucentricity 2
+       UpdateItemZ
+Endif 
+
+TiltTo $start_angle 
+
+   filename @= map_item$current_lable.mrc
+   echo read file $filename
+   ReadOtherFile 0 P $filename
+
+
+   V
+CallFunction Tomo_group_X::resetIS_1
+
+V
+Copy A H
+Copy A G
+
+GoToLowDoseArea  R
+ReportMagIndex mag_index
+SpecimenToISMatrix $mag_index
+IS_xpx = -1 * $reportedValue1
+IS_xpy = -1 * $reportedValue2
+IS_ypx = -1 * $reportedValue3
+IS_ypy = -1 * $reportedValue4
+ReportObjectiveStigmator stigma_ori_X stigma_ori_Y 
+ReportBeamTilt current_coma_ori_X current_coma_ori_Y 
+ReportDefocus cur_focus
+NormalizeAllLenses 
+delay 2
+OnStopCallFunc Tomo_group_X::reset_all
+
+#-----data collection start------
+group_end = 99
+CallFunction Tomo_group_X::TiltZero
+
+k = 2
+tilt_num = $#angle_serial - 1
+plus_num = 1
+minus_num = 1
+Loop $tilt_num  tilt_num_index
+    group_end = $tilt_num  - $tilt_num_index + 1
+     tiltangle = $angle_serial[$k]
+     if $angle_serial[$k] > $angle_serial[$k-1]
+           #tilt plus
+           CallFunction Tomo_group_X::TiltPlus
+          plus_num = $plus_num + 1
+     ElseIf  $angle_serial[$k] < $angle_serial[$k-1]
+           #tilt min
+           CallFunction Tomo_group_X::TiltMinus
+           minus_num = $minus_num + 1
+    Endif 
+   echo P_align $P_align 
+   echo M_align $M_align 
+    k = $k + 1
+EndLoop
+#-----data collection end------
+#-----after data collection-----
+CallFunction Tomo_group_X::reset_all
+
+#-----functions-----
+Function reset_all
+   GoToLowDoseArea R
+     SetImageShift 0 0 1 1
+     SetObjectiveStigmator $stigma_ori_X $stigma_ori_Y
+     SetBeamTilt $current_coma_ori_X $current_coma_ori_Y
+
+     SetDefocus $cur_focus
+     TiltTo 0
+     WriteLineToFile log_file tomo_end at Nav_Item $next_lable
+     FlushTextFile log_file 
+     CloseTextFile log_file 
+
+#   MoveStageTo 692.31 548.10
+#   GoToLowDoseArea R
+#   NormalizeAllLenses 
+#   Delay 3
+#   RefineZLP 30
+EndFunction 
+
+Function check_Flash_FEG
+   ReportFEGBeamCurrent
+   IsFEGFlashingAdvised 1 flash_HT
+   if $flash_HT > 0
+      NextFEGFlashHighTemp 
+      LongOperation FF 0
+   endif
+   LongOperation FF 1
+   ReportFEGBeamCurrent FEG_beam_current
+EndFunction 
+
+Function check_autofill
+  Loop 10
+    AreDewarsFilling
+    Filling = $reportedValue1
+    If $Filling == 0 
+       Break
+    Endif
+    Delay 2 min
+  EndLoop
+EndFunction 
+
+Function check_valve
+   ReportColumnOrGunValve valve_status
+  if $valve_status == 0
+   check_num = 1
+   Loop 30 $check_num
+      ReportVacuumGauge IGPCO IGPco_status IGPco_pressure
+     if $IGPco_status == 4
+          log_value = LOG $IGPco_pressure
+          IGPco_value = 10.1  *  ( $log_value  ) + 133.6
+          if $IGPco_value  < 30
+                  SetColumnOrGunValve 1
+                  break
+          Endif
+          Delay 1 min
+     endif
+    check_num = 1 + $check_num
+   EndLoop 
+   if $check_num >= 30
+       CallFunction Tomo_group_X::reset_all
+   endif
+ endif
+EndFunction 
+
+Function resetIS_1
+Loop $resetIS_times  index
+   ResetImageShift 
+   Delay 2 SEC
+   V
+   AlignTo P
+
+   ReportAlignShift
+   dx = $reportedValue3
+   dy = $reportedValue4
+   dist = sqrt $dx * $dx + $dy * $dy
+ 
+   If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist 
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+   Endif 
+EndLoop 
+
+EndFunction 
+
+function TiltZero
+   Delay 2
+ReportTiltAngle cur_angle
+
+#store stage position
+ReportStageXYZ StageX StageY 
+
+#determine defocus
+target_focus =  RAND 
+target_focus = ( $max_defocus - $min_defocus ) * $target_focus + $min_defocus
+
+#drift and tracking
+SetAutofocusOffset 0
+SetTargetDefocus $target_focus
+G    
+G
+T
+Copy A K
+Copy A L
+
+Delay 10
+T
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+CallFunction Tomo_group_X::check_Flash_FEG
+
+Loop $drifttimes index
+            AlignTo K
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                     Delay 10
+                     T 
+              Else
+                           echo Drift never got below $driftcrit; Skipping........
+                           break
+                Endif
+Endloop
+
+#store defocus
+GoToLowDoseArea R
+ReportDefocus
+focusplus = $RepVal1
+focusmin = $RepVal1
+ReportNavItem 
+current_index = $reportedValue1
+current_X = $reportedValue2
+current_Y = $reportedValue3
+current_note = $navNote
+current_lable = $navLabel
+#store image shifts
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+Isxminus = $RepVal1
+Isyminus = $RepVal2
+
+#acquire tilt image
+    IS_X = $Isxplus
+    IS_Y = $Isyplus 
+
+SetImageShift $IS_X $IS_Y 1 1
+R
+ReportLastFrameFile fram_name
+
+#on the fly data processing monitor
+test_name @= $fram_name_test
+OpenNewFile $test_name 
+ReportCurrentFilename 1
+fram_path = $reportedValue3
+CloseFile $test_name 
+RemoveFile $test_name 
+
+tomo_log_name @= $fram_pathtomo_log.txt
+Try 
+OpenTextFile log_file W 0 $tomo_log_name 
+Catch 
+OpenTextFile log_file A 0 $tomo_log_name 
+EndTry 
+WriteLineToFile log_file tomo_start at Nav_Item $current_lable 
+FlushTextFile log_file 
+
+#check each point
+i = 1
+array_dis_ang = {0 }
+Loop 50  side_index
+    next_index = $current_index + $i
+    Try 
+        ReportOtherItem $next_index 
+        next_X = $reportedValue2
+        next_Y = $reportedValue3
+        next_note = $navNote
+        next_lable = $navLabel
+       if $next_note == $current_note
+             echo touch next group at $next_index
+            Break 
+       Endif 
+    Catch 
+        echo touch next group at $next_index
+        Break 
+     EndTry 
+
+    stage_X =  ( $next_X - $current_X )
+    stage_Y =  ( $next_Y - $current_Y ) * ( cos  $start_angle )
+
+       IS_X  = $stage_X * $IS_xpx + $stage_Y * $IS_xpy + $Isxplus 
+       IS_Y = $stage_X * $IS_ypx + $stage_Y * $IS_ypy + $Isyplus   
+   
+   if $autoloader == 1
+     CallFunction Tomo_group_X::check_autofill
+  Endif 
+CallFunction Tomo_group_X::check_Flash_FEG
+
+    SetImageShift $IS_X $IS_Y 1 1
+
+   Z_defocus = ( $next_Y - $current_Y ) * ( sin $exp_start_angle  ) 
+
+    if $use_focus_forZ == 1
+         Z_defocus_toset = $Z_defocus + $focusplus
+        SetDefocus $Z_defocus_toset 
+        AutoFocus
+        ReportDefocus
+        Z_diff = ( 1 / ( 1 + $Z_correct  ) ) * ( $reportedValue1 - $focusplus )
+     else
+        Z_defocus_toset =  ( 1 + $Z_correct  )   * $Z_defocus + $focusplus
+       SetDefocus $Z_defocus_toset 
+        Z_diff = $Z_defocus
+     Endif 
+
+     array_dis_ang = {$array_dis_ang $stage_Y $Z_diff $next_lable }
+     echo $array_dis_ang
+   #EarlyReturnNextShot 0
+    R
+    ReportLastFrameFile fram_name
+    WriteLineToFile log_file $cur_angle $fram_name $IS_X $IS_Y $next_lable $Z_diff 1 $group_end R
+   FlushTextFile log_file 
+
+    filename @= mapS_$side_index.mrc
+    RemoveFile $filename 
+    SaveToOtherFile A MRC CUR $filename 
+    
+    P_align = { $P_align 0 $Z_diff  }
+    M_align = { $M_align 0 $Z_diff  }
+    P_align_X = { $P_align_X 0 $stage_X }
+    M_align_X = { $M_align_X 0 $stage_X }
+     i = $i + 1
+EndLoop
+group_num = $i - 1
+endfunction
+
+function TiltPlus
+   
+#tilt stage
+if $data_mode == 1 or $data_mode == 2
+   TiltTo $tiltangle
+   GoToLowDoseArea R
+Else
+   WalkUpTo $tiltangle
+   GoToLowDoseArea R
+   NormalizeAllLenses 
+   delay 2
+Endif 
+Delay 2
+ReportTiltAngle cur_angle
+#reset stage XY
+MoveStageTo $StageX $StageY
+    
+#setdefocus and image shift
+SetDefocus $focusplus
+SetImageShift $Isxplus $Isyplus 1 1
+
+#drift and tracking
+T
+AlignTo K
+ReportAlignShift
+dx = $reportedValue3
+dy = $reportedValue4
+dist = sqrt $dx * $dx + $dy * $dy
+echo $dist Alignment 
+if $dist > 150
+    echo $dist  ClearAlignment 
+    ClearAlignment 
+    V
+    AlignTo H
+    V
+    Copy A H
+    GoToLowDoseArea R
+    NormalizeAllLenses 
+   delay 3
+   T
+   AlignTo K
+ Endif 
+   T
+   Copy A K
+
+G
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+CallFunction Tomo_group_X::check_Flash_FEG
+
+T
+Loop $drifttimes index
+            AlignTo K
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                         Delay 10
+                         T
+              Else
+                            echo Drift never got below $driftcrit; Skipping........
+                             break
+                Endif
+Endloop
+
+#store defocus
+   GoToLowDoseArea R
+ReportDefocus focusplus 
+#store image shifts
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+
+#record other point
+diff_angle = $cur_angle - $start_angle 
+j = 2
+Loop $group_num side_index
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+    stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+    if $plus_num > 7
+          filename @= mapP_$side_index.mrc
+          ReadOtherFile 0 P $filename 
+     Else          
+           filename @= mapS_$side_index.mrc
+          ReadOtherFile 0 P $filename
+       Endif 
+
+        curr_align_num = $side_index * 2
+        side_align_X = $P_align_X[$curr_align_num]
+        side_align_Y = $P_align[$curr_align_num]
+        curr_align_num = $curr_align_num  + 1
+       X_diffcorr = $P_align_X[$curr_align_num]
+       Z_diffcorr = $P_align[$curr_align_num]
+
+    X_error = 0.001 * $side_align_X
+     Z_error = -0.001 * $side_align_Y / ( sin $diff_angle )
+     echo Z_error $Z_error um
+
+     if ( $Z_error > 2  OR $Z_error < -2 ) AND $use_focus_forZ == 1
+            Z_error  = $Z_error * 0.5
+     Endif 
+    if $X_error > 2  OR $X_error < -2
+          X_error  = $X_error * 0.5
+     endif
+
+    X_diffcorr = $X_diffcorr  + $X_error 
+     Z_diffcorr = $Z_diffcorr  + $Z_error 
+
+    stage_X_new = $X_diffcorr  
+    stage_Y_new =  $stage_Y * ( cos $diff_angle  ) - $Z_diffcorr * ( sin $diff_angle )
+
+     IS_X  = $stage_X_new  * $IS_xpx + $stage_Y_new * $IS_xpy + $Isxplus 
+     IS_Y = $stage_X_new  * $IS_ypx + $stage_Y_new * $IS_ypy + $Isyplus 
+
+     Z_defocus = ( 1 + $Z_correct  )  *  ( $stage_Y * ( sin $diff_angle  ) + $Z_diffcorr * ( cos $diff_angle  )  ) + $focusplus
+
+    SetDefocus $Z_defocus
+
+    if $autoloader == 1
+       CallFunction Tomo_group_X::check_autofill
+    Endif 
+CallFunction Tomo_group_X::check_Flash_FEG
+
+   SetImageShift $IS_X $IS_Y 1 1
+    #EarlyReturnNextShot 0
+     R
+    ReportLastFrameFile fram_name
+    WriteLineToFile log_file $cur_angle $fram_name $IS_X $IS_Y $next_lable $Z_error $k $group_end R
+    FlushTextFile log_file 
+
+    rest_num = MODULO $plus_num 6
+    if $rest_num == 5
+        filename @= mapP_$side_index.mrc
+        RemoveFile $filename 
+        SaveToOtherFile A MRC CUR $filename
+   Endif 
+        AlignTo P 1
+        ReportAlignShift
+        side_align_X = $reportedValue5
+        side_align_Y = $reportedValue6
+        curr_align_num = $side_index * 2
+        P_align_X[$curr_align_num] = $side_align_X
+        P_align[$curr_align_num] = $side_align_Y
+
+         if $M_align[$curr_align_num] == 0.0
+                M_align[$curr_align_num] = -1 * $side_align_Y
+          Endif 
+
+        curr_align_num = $curr_align_num  + 1
+         P_align_X[$curr_align_num] = $X_diffcorr  
+         P_align[$curr_align_num] = $Z_diffcorr 
+
+
+EndLoop
+echo record side points
+endfunction
+
+Function TiltMinus
+
+#tilt stage with backlash
+if $data_mode == 1 or $data_mode == 2  
+  Tiltbacklash_C =  $tiltangle + $Tiltbacklash
+  TiltTo $Tiltbacklash_C
+  TiltTo $tiltangle
+  GoToLowDoseArea  R
+ElseIf 
+   WalkUpTo $tiltangle
+   GoToLowDoseArea  R
+   NormalizeAllLenses 
+   delay 2
+Endif 
+
+ReportTiltAngle cur_angle
+
+#reset stage XY
+MoveStageTo $StageX $StageY
+Delay 2
+   
+#set defocus and image shift
+SetDefocus $focusmin
+SetImageShift $Isxminus $Isyminus 1 1
+
+#drift and tracking
+T
+AlignTo L
+ReportAlignShift
+dx = $reportedValue3
+dy = $reportedValue4
+dist = sqrt $dx * $dx + $dy * $dy
+echo $dist Alignment 
+if $dist > 150
+     echo $dist  ClearAlignment 
+    ClearAlignment 
+    V
+    AlignTo G
+   V
+   Copy A G
+    GoToLowDoseArea R
+   NormalizeAllLenses 
+   delay 3
+   T
+    AlignTo L
+Endif 
+   T
+    Copy A L
+
+G 
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+CallFunction Tomo_group_X::check_Flash_FEG
+
+T
+Loop $drifttimes index
+            AlignTo L
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                         Delay 10
+                         T 
+              Else
+                            echo Drift never got below $driftcrit; Skipping........
+                             break
+                Endif
+Endloop
+
+#store defocus
+   GoToLowDoseArea R
+ReportDefocus focusmin 
+#store image shifts
+ReportImageShift
+Isxminus = $RepVal1
+Isyminus = $RepVal2
+
+#record other point
+diff_angle = $cur_angle - $start_angle 
+j = 2
+Loop $group_num side_index
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+   stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+
+    if $minus_num  > 7
+          filename @= mapM_$side_index.mrc
+          ReadOtherFile 0 P $filename 
+     Else          
+           filename @= mapS_$side_index.mrc
+          ReadOtherFile 0 P $filename
+       Endif 
+
+        curr_align_num = $side_index * 2
+        side_align_X = $M_align_X[$curr_align_num]
+        side_align_Y = $M_align[$curr_align_num]
+        curr_align_num = $curr_align_num  + 1
+       X_diffcorr = $M_align_X[$curr_align_num]
+       Z_diffcorr = $M_align[$curr_align_num]
+
+    X_error = 0.001 * $side_align_X
+     Z_error = -0.001 * $side_align_Y / ( sin $diff_angle )
+     echo Z_error $Z_error um
+
+     if ( $Z_error > 2  OR $Z_error < -2 ) AND $use_focus_forZ == 1
+            Z_error  = $Z_error * 0.5
+     Endif 
+    if $X_error > 2  OR $X_error < -2
+          X_error  = $X_error * 0.5
+     endif
+
+     X_diffcorr = $X_diffcorr  + $X_error 
+     Z_diffcorr = $Z_diffcorr  + $Z_error 
+
+    stage_X_new = $X_diffcorr  
+    stage_Y_new =  $stage_Y * ( cos $diff_angle  ) - $Z_diffcorr * ( sin $diff_angle  )
+
+     IS_X  = $stage_X_new  * $IS_xpx + $stage_Y_new * $IS_xpy + $Isxminus 
+     IS_Y = $stage_X_new * $IS_ypx + $stage_Y_new * $IS_ypy + $Isyminus 
+
+    Z_defocus = ( 1 + $Z_correct  )  * ( $stage_Y * ( sin $diff_angle  ) + $Z_diffcorr * ( cos $diff_angle  )  )  + $focusmin
+
+    SetDefocus $Z_defocus
+    if $autoloader == 1
+      CallFunction Tomo_group_X::check_autofill
+    Endif 
+CallFunction Tomo_group_X::check_Flash_FEG
+
+
+   SetImageShift $IS_X $IS_Y 1 1
+    #EarlyReturnNextShot 0
+    R
+    ReportLastFrameFile fram_name
+    WriteLineToFile log_file $cur_angle $fram_name $IS_X $IS_Y $next_lable $Z_error $k $group_end R
+    FlushTextFile log_file 
+
+    rest_num = MODULO $minus_num 6
+    if $rest_num == 5
+        filename @= mapM_$side_index.mrc
+        RemoveFile $filename 
+        SaveToOtherFile A MRC CUR $filename
+   Endif 
+        AlignTo P 1
+        ReportAlignShift
+        side_align_X = $reportedValue5
+        side_align_Y = $reportedValue6
+        curr_align_num = $side_index * 2
+        M_align_X[$curr_align_num] = $side_align_X
+        M_align[$curr_align_num] = $side_align_Y
+
+        curr_align_num = $curr_align_num  + 1
+         M_align_X[$curr_align_num] = $X_diffcorr 
+         M_align[$curr_align_num] = $Z_diffcorr 
+
+EndLoop
+     echo record side points
+endfunction
+EndMacro
+Macro	5
+MacroName reset_X
+#130kx
+CallMacro 1
+
+
+GoToLowDoseArea R
+SetImageShift 0 0
+NormalizeAllLenses 
+Delay 3
+SetEucentricFocus 
+
+if  $flash_CFEG  ==  1
+   ReportFEGBeamCurrent
+   IsFEGFlashingAdvised 1 flash_HT
+   if $flash_HT > 0
+      NextFEGFlashHighTemp 
+      LongOperation FF 0
+   endif
+   LongOperation FF 1
+   ReportFEGBeamCurrent FEG_beam_current
+Endif 
+
+ReportObjectiveStigmator OS_X OS_Y
+ReportBeamTilt BT_X BT_Y
+echo ObjectiveStigmator $OS_X $OS_Y
+echo BeamTilt $BT_X $BT_Y
+
+SetObjectiveStigmator    -0.005678 0.0162
+SetBeamTilt      -38.1913 3.046554
+EndMacro
+Macro	6
+MacroName Tomo_group_X
+
+CallMacro 1
+
+#create angle serial
+angle_serial = {$start_angle }
+P_align = {0 }
+P_align_X = {0 }
+M_align = {0 }
+M_align_X = {0 }
+skip_point_P = {0 }
+skip_point_M = {0 }
+
+
+P_tilt_max = 0
+M_tilt_max = 0
+
+if $camera == 3
+   file_num_add = 1
+Else
+   file_num_add = 1000
+Endif 
+tilt_order = 1
+
+if $data_mode == 1 or  $data_mode ==  4
+  k = 1
+  Loop $tilttimes
+    #tilt plus1
+     tiltangle = $start_angle + $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+           P_tilt_max = $P_tilt_max + 1
+    Endif 
+    #tilt min1
+      tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+            M_tilt_max = $M_tilt_max + 1
+     Endif 
+    k = $k + 1
+    #tilt min2
+     tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+            M_tilt_max = $M_tilt_max + 1
+     Endif 
+    #tilt plus2
+      tiltangle = $start_angle +  $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+           P_tilt_max = $P_tilt_max + 1
+    Endif 
+    k = $k + 1
+  EndLoop
+ElseIf $data_mode == 2 
+  #tilt plus
+  k = 1
+  Loop $tilttimes
+     tiltangle = $start_angle + $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+           P_tilt_max = $P_tilt_max + 1
+    Endif 
+    k = $k + 1
+  EndLoop
+
+  #tilt min
+  k = 1
+  Loop $tilttimes
+     tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+            M_tilt_max = $M_tilt_max + 1
+     Endif 
+    k = $k + 1
+  EndLoop
+endif
+
+echo $angle_serial
+#---before data collection----
+ReportNavItem 
+current_index = $reportedValue1
+current_X = $reportedValue2
+current_Y = $reportedValue3
+current_Z = $reportedValue4
+current_note = $navNote
+current_lable = $navLabel
+
+OnStopCallFunc Tomo_group_X::reset_all
+
+#-----data collection start------
+GoToLowDoseArea  R
+ReportMagIndex mag_index
+SpecimenToISMatrix $mag_index
+IS_xpx = -1 * $reportedValue1
+IS_xpy = -1 * $reportedValue2
+IS_ypx = -1 * $reportedValue3
+IS_ypy = -1 * $reportedValue4
+ISToSpecimenMatrix $mag_index
+SPS_xpx = -1 * $reportedValue1
+SPS_xpy = -1 * $reportedValue2
+SPS_ypx = -1 * $reportedValue3
+SPS_ypy = -1 * $reportedValue4
+ReportComaVsISmatrix BT_xpx BT_xpy BT_ypx BT_ypy
+ReportObjectiveStigmator stigma_ori_X stigma_ori_Y 
+ReportBeamTilt current_coma_ori_X current_coma_ori_Y 
+ReportDefocus cur_focus
+ReportTiltAngle cur_angle
+
+group_end = $#angle_serial
+plus_num = 0
+minus_num = 0
+if $fast_mode  == 1 AND $data_mode == 3
+   CallFunction Tomo_group_X::TiltZero_fast
+else
+ if $data_mode == 1 or $data_mode == 2
+  in_hole_distance = 0
+  in_hole_num  = 1
+ Endif 
+   CallFunction Tomo_group_X::TiltZero
+Endif 
+#   echo P_align $P_align 
+#   echo M_align $M_align 
+
+k = 2
+tilt_num = $#angle_serial - 1
+
+Loop $tilt_num  tilt_num_index
+#    group_end = $tilt_num  - $tilt_num_index + 1
+     tiltangle = $angle_serial[$k]
+     if $angle_serial[$k] > $angle_serial[$k-1]
+           #tilt plus
+           plus_num = $plus_num + 1
+            if $plus_num > 2 AND $fast_mode  == 1
+              if $data_mode == 1 or $data_mode == 2
+               in_hole_distance = 0
+               in_hole_num  = 1
+              Endif 
+               CallFunction Tomo_group_X::TiltPlus_fast
+            ElseIf $fast_mode  == 1 AND $data_mode == 4
+               CallFunction Tomo_group_X::TiltPlus_fast
+           Else
+              CallFunction Tomo_group_X::TiltPlus
+           Endif 
+         
+     ElseIf  $angle_serial[$k] < $angle_serial[$k-1]
+           #tilt min
+           minus_num = $minus_num + 1
+            If $minus_num > 2 AND $fast_mode  == 1
+              if $data_mode == 1 or $data_mode == 2
+               in_hole_distance = 0
+               in_hole_num  = 1
+              Endif 
+              CallFunction Tomo_group_X::TiltMinus_fast
+            ElseIf $fast_mode  == 1 AND $data_mode == 4
+               CallFunction Tomo_group_X::TiltMinus_fast
+           Else
+              CallFunction Tomo_group_X::TiltMinus
+           Endif 
+           
+    Endif 
+   echo P_align $P_align 
+   echo M_align $M_align 
+    k = $k + 1
+EndLoop
+#-----data collection end------
+#-----after data collection-----
+CallFunction Tomo_group_X::reset_all
+
+#-----functions-----
+Function reset_all
+   GoToLowDoseArea R
+     SetImageShift 0 0
+     SetObjectiveStigmator $stigma_ori_X $stigma_ori_Y
+     SetBeamTilt $current_coma_ori_X $current_coma_ori_Y
+
+     SetDefocus $cur_focus
+
+     if $do_eucentric_fine == 1 or $do_eucentric_fine == 3
+      TiltTo 0
+     Else
+      TiltTo $start_angle 
+     Endif 
+
+     if $data_mode == 1 or $data_mode == 2
+     WriteLineToFile log_file tomo_end at Nav_Item $current_lable 
+     FlushTextFile log_file 
+     CloseTextFile log_file 
+    Endif 
+
+#   MoveStageTo 692.31 548.10   # empty (no sample ) position
+#   GoToLowDoseArea R
+#   NormalizeAllLenses 
+#   Delay 3
+#   RefineZLP 30
+EndFunction 
+
+Function check_Flash_FEG
+   ReportFEGBeamCurrent
+   IsFEGFlashingAdvised 1 flash_HT
+   if $flash_HT > 0
+      NextFEGFlashHighTemp 
+      LongOperation FF 0
+   endif
+   LongOperation FF 1
+   ReportFEGBeamCurrent FEG_beam_current
+EndFunction 
+
+Function check_autofill
+  Loop 10
+    AreDewarsFilling
+    Filling = $reportedValue1
+    If $Filling == 0 
+       Break
+    Endif
+    Delay 2 min
+  EndLoop
+EndFunction 
+
+Function check_valve
+   ReportColumnOrGunValve valve_status
+  if $valve_status == 0
+   check_num = 1
+   Loop 30 $check_num
+      ReportVacuumGauge IGPCO IGPco_status IGPco_pressure
+     if $IGPco_status == 4
+          log_value = LOG $IGPco_pressure
+          IGPco_value = 10.1  *  ( $log_value  ) + 133.6
+          if $IGPco_value  < 30
+                  SetColumnOrGunValve 1
+                  break
+          Endif
+          Delay 1 min
+     endif
+    check_num = 1 + $check_num
+   EndLoop 
+   if $check_num >= 30
+       CallFunction Tomo_group_X::reset_all
+   endif
+ endif
+EndFunction 
+
+Function resetIS_1
+Loop $resetIS_times  index
+   ResetImageShift 
+   Delay 2 SEC
+   V
+   AlignTo P
+
+   ReportAlignShift
+   dx = $reportedValue3
+   dy = $reportedValue4
+   dist = sqrt $dx * $dx + $dy * $dy
+ 
+   If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist 
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+   Endif 
+EndLoop 
+
+EndFunction 
+
+function focus_value
+    target_focus =  RAND 
+    target_focus = ( $max_defocus - $min_defocus ) * $target_focus + $min_defocus
+    echo TargetDefocus is $target_focus
+    SetTargetDefocus $target_focus
+    SetAutofocusOffset 0
+EndFunction 
+
+function Z_focus
+target_valuve = $target_focus
+
+Loop 10
+     Autofocus -1
+     reportAutofocus
+    recent_value = $reportedValue1
+    move_value =  -1 * $recent_value + $target_valuve
+   
+    if $move_value < 0
+            if $move_value > -0.2
+                echo --> focus error $move_value micron
+                break
+            endif
+    else
+             if $move_value < 0.2
+                echo --> focus error $move_value micron
+                  break
+             endif
+    endif
+
+    MoveStage 0 0 $move_value
+    echo --> Z moved $move_value micron 
+
+EndLoop
+endfunction
+
+Function tomo_group_V_p2
+
+ReportSpecimenShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+
+i = 1
+array_dis_ang = {0 }
+Loop $max_point_in_group 
+    next_index = $current_index + $i
+
+    Try 1
+        ReportOtherItem $next_index 
+        next_X = $reportedValue2
+        next_Y = $reportedValue3
+        next_Z = $reportedValue4
+        next_note = $navNote
+        next_lable = $navLabel
+       if $next_note == $current_note
+             echo touch next group at $next_index
+            Break 
+       Endif 
+    Catch 
+        echo touch next group at $next_index
+        Break 
+     EndTry 
+
+if $accurate_position == 1
+   filename @= map_item$next_lable.mrc
+   ReadOtherFile 0 P $filename
+   echo read file $filename
+Endif 
+    stage_X =  ( $next_X - $current_X )
+    stage_Y =  ( $next_Y - $current_Y ) * ( cos  $exp_start_angle  )
+
+       IS_X  = $stage_X * $IS_xpx + $stage_Y * $IS_xpy + $Isxplus
+       IS_Y = $stage_X * $IS_ypx + $stage_Y * $IS_ypy + $Isyplus
+
+if $accurate_position == 1
+       SetImageShift $IS_X $IS_Y 1 1
+       V
+   Delay 1 SEC
+   AlignTo P 1
+   Delay 1 SEC
+    ReportAlignShift
+    stage_X = ( $next_X + $reportedValue5 * 0.001 ) - $current_X 
+    stage_Y = ( $next_Y  + $reportedValue6 * 0.001 - $current_Y )  * ( cos  $exp_start_angle  ) 
+#   IS_X  = $IS_X  -  $reportedValue3 * 0.001
+#   IS_Y  = $IS_Y  -  $reportedValue4 * 0.001
+#   stage_X = $IS_X  * $SPS_xpx + $IS_Y  * $SPS_xpy 
+#   stage_Y = $IS_X  * $SPS_ypx + $IS_Y  * $SPS_ypy 
+Endif 
+    Z_diff  = ( $next_Y - $current_Y ) * ( sin $exp_start_angle  )
+
+    array_dis_ang = {$array_dis_ang $stage_Y $Z_diff $next_lable }
+
+    P_align = { $P_align 0 $Z_diff  }
+    M_align = { $M_align 0 $Z_diff  }
+
+    P_align_X = { $P_align_X 0 $stage_X }
+    M_align_X = { $M_align_X 0 $stage_X }
+
+    skip_point_P = { $skip_point_P 0 $P_tilt_max }
+    skip_point_M = { $skip_point_M 0 $M_tilt_max }
+
+    i = $i + 1
+EndLoop 
+group_num = $i - 1
+echo $array_dis_ang
+echo $P_align_X 
+SetImageShift $Isxplus $Isyplus 1 1
+EndFunction 
+
+Function TiltZero
+echo TiltZero
+if $flash_CFEG == 1
+  CallFunction Tomo_group_X::check_Flash_FEG
+  ReportMinuteTime flash_time
+ Endif 
+
+if $do_eucentric_fine  == 1
+ CallFunction Tomo_group_X::move_stage
+ SetExposure V 0.5
+ SetBinning V 4
+       Eucentricity 2
+       UpdateItemZ
+       RestoreCameraSet V
+       ReportNavItem 
+       current_Z = $reportedValue4
+       tiltangle = $start_angle
+       CallFunction Tomo_group_X::check_stage
+ElseIf $do_eucentric_fine  == 3
+ CallFunction Tomo_group_X::move_stage
+ SetExposure V 0.5
+ SetBinning V 4
+       Eucentricity 1
+       UpdateItemZ
+       RestoreCameraSet V
+       ReportNavItem 
+       current_Z = $reportedValue4
+       tiltangle = $start_angle
+       CallFunction Tomo_group_X::check_stage
+Else
+ tiltangle = $start_angle
+ CallFunction Tomo_group_X::check_stage
+Endif 
+
+if $accurate_position == 1
+   filename @= map_item$current_lable.mrc
+   echo read file $filename
+   ReadOtherFile 0 P $filename
+
+   V
+CallFunction Tomo_group_X::resetIS_1
+Endif 
+
+if $move_stage_instead_IS  == 2
+   if $data_mode == 1 or $data_mode == 2 or $data_mode == 4
+      V
+      Copy A H
+      Copy A G
+      file_num_add1 = $file_num_add + $start_angle + 90
+      fram_name @= Nav_lable_$current_lable_$file_num_add1_$start_angle_V.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name
+   Endif 
+Endif 
+
+CallFunction Tomo_group_X::tomo_group_V_p2
+
+ReportStageXYZ StageX StageY StageZ
+CallFunction Tomo_group_X::focus_value
+G
+G    
+ReportDefocus
+focusplus = $RepVal1
+focusmin = $RepVal1
+ReportFocusDrift  dx dy
+dist = sqrt  ( $dx * $dx + $dy * $dy )
+rate = $dist  * 10
+echo Rate = $rate A/Sec
+
+#drift and tracking
+T
+Copy A K
+Copy A L
+file_num_add1 = $file_num_add + $start_angle + 90
+fram_name @= Nav_lable_$current_lable_$file_num_add1_$start_angle_T.jpg
+SaveToOtherFile A JPEG JPEG $fram_name
+
+if $rate < $driftcrit
+   echo Drift is low enough
+   if $autoloader == 1
+      CallFunction Tomo_group_X::check_autofill
+   Endif 
+Else
+   Delay 10
+   T
+   if $autoloader == 1
+      CallFunction Tomo_group_X::check_autofill
+   Endif 
+
+   Loop $drifttimes index
+            AlignTo K
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                     Delay 10
+                     T 
+              Else
+                           echo Drift never got below $driftcrit; Skipping........
+                           break
+                Endif
+        Endloop
+Endif 
+
+GoToLowDoseArea R
+#store image shifts
+if $move_stage_instead_IS  == 1
+   Loop $resetIS_times  index
+      GoToLowDoseArea R
+      ResetImageShift 
+      Delay 1 sec
+      T
+      AlignTo K
+      ReportAlignShift
+      dx = $reportedValue3
+      dy = $reportedValue4
+      dist = sqrt $dx * $dx + $dy * $dy
+
+     If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist 
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+   Endif 
+   EndLoop 
+   ReportStageXYZ $StageX_M  $StageY_M
+   StageX_P = $StageX_M 
+   StageY_P = $StageY_M
+Endif 
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+Isxminus = $RepVal1
+Isyminus = $RepVal2
+ReportTiltAngle cur_angle 
+
+
+if $data_mode == 1 or $data_mode == 2
+   if $camera == 1 or $camera == 2
+      R
+      ReportLastFrameFile fram_name full_path full_name
+
+      #on the fly data processing monitor
+      test_name @= $fram_name_test
+      OpenNewFile $test_name 
+      ReportCurrentFilename 1
+      fram_path = $reportedValue3
+      CloseFile $test_name 
+      RemoveFile $test_name 
+
+      tomo_log_name @= $fram_pathtomo_log.txt
+
+      Try 1
+         OpenTextFile log_file W 0 $tomo_log_name 
+      Catch 
+         OpenTextFile log_file A 0 $tomo_log_name 
+      EndTry 
+
+      WriteLineToFile log_file tomo_start at Nav_Item $current_lable 
+      If $move_stage_instead_IS  == 1
+         if $flash_CFEG == 1
+            WriteLineToFile log_file $cur_angle $full_name $Isxplus $Isyplus $current_lable 0 1 $group_end R $flash_time
+         Else
+            WriteLineToFile log_file $cur_angle $full_name $Isxplus $Isyplus $current_lable 0 1 $group_end R
+         Endif 
+      Endif 
+
+      file_num_add1 = $file_num_add + $start_angle + 90
+      fram_name @= Nav_lable_$current_lable_$file_num_add1_$start_angle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+
+   Else
+      tomo_log_name @= tomo_log.txt
+      Try 1
+         OpenTextFile log_file W 0 $tomo_log_name 
+      Catch 
+         OpenTextFile log_file A 0 $tomo_log_name 
+      EndTry 
+      WriteLineToFile log_file tomo_start at Nav_Item $current_lable 
+      FlushTextFile log_file 
+
+      fram_name @= Nav_lable_$current_lable_$file_num_add.mrc
+      Try 1
+         OpenNewFile  $fram_name 
+      Catch 
+         file_num_add = $file_num_add + 1
+         fram_name @= Nav_lable_$current_lable_$file_num_add.mrc
+         OpenNewFile  $fram_name
+      EndTry 
+      R
+      Save
+      CloseFile
+
+      WriteLineToFile log_file $cur_angle $fram_name $Isxplus $Isyplus $current_lable 0 1 $group_end R
+      FlushTextFile log_file 
+   Endif 
+Else
+ j = 1
+ loop $in_hole_num
+   j = $j + 1
+   IS_X = $Isxplus + $in_hole_serial[$j]
+   j = $j + 1
+   IS_Y = $Isyplus + $in_hole_serial[$j]
+
+if $move_stage_instead_IS == 1
+   SetImageShift $IS_X $IS_Y
+   ResetImageShift 
+Else
+   SetImageShift $IS_X $IS_Y 1 1
+Endif 
+
+   if $camera == 1 or $camera == 2
+      R
+      ReportLastFrameFile fram_name full_path full_name
+      if $j == 3
+         #on the fly data processing monitor
+         test_name @= $fram_name_test
+         OpenNewFile $test_name 
+         ReportCurrentFilename 1
+         fram_path = $reportedValue3
+         CloseFile $test_name 
+         RemoveFile $test_name
+         tomo_log_name @= $fram_pathSP_log.txt
+
+         Try 1
+            OpenTextFile log_file W 0 $tomo_log_name 
+         Catch 
+            OpenTextFile log_file A 0 $tomo_log_name 
+         EndTry 
+      Endif 
+   
+         if $flash_CFEG == 1
+            WriteLineToFile log_file $cur_angle $full_name $Isxplus $Isyplus $current_lable 0 1 $group_end R $flash_time
+         Else
+            WriteLineToFile log_file $cur_angle $full_name $Isxplus $Isyplus $current_lable 0 1 $group_end R
+         Endif 
+    FlushTextFile log_file 
+
+     file_num_add1 = $file_num_add + $start_angle + 90
+      fram_name @= Nav_lable_$current_lable_$file_num_add1_$start_angle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+      
+
+ Else
+    if $j == 3
+       tomo_log_name @= tomo_log.txt
+      Try 
+         OpenTextFile log_file W 0 $tomo_log_name 
+      Catch 
+         OpenTextFile log_file A 0 $tomo_log_name 
+      EndTry 
+      WriteLineToFile log_file tomo_start at Nav_Item $current_lable 
+      FlushTextFile log_file 
+   Endif 
+      fram_name @= Nav_lable_$current_lable_$file_num_add.mrc
+      Try 
+         OpenNewFile  $fram_name 
+      Catch 
+         file_num_add = $file_num_add + 1
+         fram_name @= Nav_lable_$current_lable_$file_num_add.mrc
+         OpenNewFile  $fram_name
+      EndTry 
+      R
+      Save
+      CloseFile
+
+      WriteLineToFile log_file $cur_angle $fram_name $Isxplus $Isyplus $current_lable 0 1 $group_end R
+      FlushTextFile log_file 
+ Endif 
+ EndLoop 
+ 
+Endif 
+
+if $move_stage_instead_IS  == 2
+#check each point
+j = 2
+Loop $group_num side_index
+
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+    stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+
+        curr_align_num = $side_index * 2
+        curr_align_num = $curr_align_num  + 1
+       stage_X = $P_align_X[$curr_align_num]
+
+     echo stage_X $stage_X um stage_Y $stage_Y um stage_Z $stage_Z um
+
+     IS_X_a  = $stage_X * $IS_xpx + $stage_Y * $IS_xpy + $Isxplus 
+     IS_Y_a = $stage_X  * $IS_ypx + $stage_Y * $IS_ypy + $Isyplus 
+
+      SetImageShift $IS_X_a $IS_Y_a 1 1
+
+    if $use_focus_forZ == 1
+         Z_defocus_toset = $stage_Z  + $focusplus
+        SetDefocus $Z_defocus_toset 
+        AutoFocus
+        ReportDefocus
+        Z_diff = ( 1 / ( 1 + $Z_correct  ) ) * ( $reportedValue1 - $focusplus )
+     else
+        Z_defocus_toset =  ( 1 + $Z_correct  )   * $stage_Z  + $focusplus
+       SetDefocus $Z_defocus_toset 
+        Z_diff =   $stage_Z
+     Endif 
+
+     curr_align_num = $side_index * 2
+     curr_align_num = $curr_align_num  + 1
+     P_align[$curr_align_num] = $Z_diff 
+     M_align[$curr_align_num] = $Z_diff 
+
+    if $autoloader == 1
+       CallFunction Tomo_group_X::check_autofill
+    Endif 
+
+    i = 1
+    loop $in_hole_num
+         i = $i + 1
+         IS_X  = $IS_X_a   + $in_hole_serial[$i]
+         i = $i + 1
+       IS_Y =  $IS_Y_a   + $in_hole_serial[$i]
+
+   SetImageShift $IS_X $IS_Y 1 1
+
+   if $camera == 1 or $camera == 2
+   #EarlyReturnNextShot 0
+    R
+    ReportLastFrameFile fram_name full_path full_name
+    if $flash_CFEG == 1
+     WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $next_lable $Z_diff 1 $group_end R $flash_time
+    Else
+    WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $next_lable $Z_diff 1 $group_end R
+   Endif 
+   FlushTextFile log_file 
+
+    file_num_add1 = $file_num_add + $tiltangle + 90
+       fram_name @= Nav_lable_$next_lable_$file_num_add1_$tiltangle_$full_name.jpg
+       SaveToOtherFile A JPEG JPEG $fram_name 
+
+Else
+       fram_name @= Nav_lable_$next_lable_$file_num_add.mrc
+    Try 
+       OpenNewFile $fram_name 
+     Catch
+        file_num_add = $file_num_add + 1
+        fram_name @= Nav_lable_$next_lable_$file_num_add.mrc
+        OpenNewFile $fram_name 
+     EndTry 
+    R
+    Save
+    CloseFile
+
+    WriteLineToFile log_file $cur_angle $fram_name $IS_X $IS_Y $next_lable $Z_diff 1 $group_end R
+   FlushTextFile log_file 
+Endif 
+  EndLoop 
+
+if $data_mode == 1 or $data_mode == 2
+    filename @= mapS_$side_index.mrc
+    RemoveFile $filename 
+    SaveToOtherFile A MRC CUR $filename 
+   Endif 
+EndLoop
+Endif 
+EndFunction 
+
+function TiltPlus
+echo TiltPlus
+#tilt stage
+if $data_mode == 1 or $data_mode == 2
+   CallFunction Tomo_group_X::tiltup_by_step
+   GoToLowDoseArea R
+Else
+   WalkUpTo $tiltangle
+   GoToLowDoseArea R
+   NormalizeAllLenses 
+Endif 
+Delay 2
+ReportTiltAngle cur_angle
+    
+#setdefocus and image shift
+SetDefocus $focusplus
+if $move_stage_instead_IS  == 1
+   MoveStageTo $StageX_P  $StageY_P
+Else
+   SetImageShift $Isxplus $Isyplus 1 1
+Endif 
+
+#drift and tracking
+T
+AlignTo K
+ReportAlignShift
+dx = $reportedValue3
+dy = $reportedValue4
+dist = sqrt $dx * $dx + $dy * $dy
+if $dist > $tracking_Vswitch AND $move_stage_instead_IS  == 2
+    ClearAlignment 
+    V
+    AlignTo H
+    V
+    Copy A H
+    file_num_add1 = $file_num_add + $tiltangle + 90
+    fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_V.jpg
+    SaveToOtherFile A JPEG JPEG $fram_name
+    GoToLowDoseArea R
+    NormalizeAllLenses 
+   delay 3
+   T
+   AlignTo K
+ Endif 
+   T
+   Copy A K
+   file_num_add1 = $file_num_add + $tiltangle + 90
+    fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_T.jpg
+    SaveToOtherFile A JPEG JPEG $fram_name
+
+G
+ReportFocusDrift  dx dy
+dist = sqrt  ( $dx * $dx + $dy * $dy )
+rate = $dist  * 10
+echo Rate = $rate A/Sec
+
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+
+if $rate < $driftcrit
+   echo Drift is low enough
+Else
+   T
+   Loop $drifttimes index
+            AlignTo K
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                         Delay 10
+                         T
+              Else
+                          echo Drift never got below $driftcrit; Skipping........
+                          break
+                Endif
+      Endloop
+Endif 
+
+#store defocus
+   GoToLowDoseArea R
+ReportDefocus focusplus 
+#store image shifts
+if $move_stage_instead_IS  == 1
+   Loop $resetIS_times  index
+      ResetImageShift 
+      Delay 2 sec
+      T
+      AlignTo K
+      ReportAlignShift
+      dx = $reportedValue3
+      dy = $reportedValue4
+      dist = sqrt $dx * $dx + $dy * $dy
+
+     If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      SetImageShift 0 0
+      SetObjectiveStigmator  $stigma_ori_X   $stigma_ori_Y 
+      SetBeamTilt   $current_coma_ori_X   $current_coma_ori_Y
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist nm
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+      SetImageShift 0 0
+      SetObjectiveStigmator  $stigma_ori_X   $stigma_ori_Y 
+      SetBeamTilt   $current_coma_ori_X   $current_coma_ori_Y
+   Endif 
+   EndLoop 
+
+   ReportStageXYZ $StageX_P  $StageY_P
+Endif 
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+
+if $camera == 3 
+   tilt_order =  $tilt_order + 1
+   group_end = $group_end  - 1
+   fram_name @= Nav_lable_$current_lable_$file_num_add.mrc
+   OpenOldFile $fram_name 
+   R
+   Save
+   CloseFile
+
+   WriteLineToFile log_file $cur_angle $fram_name $Isxplus $Isyplus $current_lable 0 $tilt_order $group_end R
+   FlushTextFile log_file 
+ElseIf  $move_stage_instead_IS  == 1
+   if $camera == 1 or $camera == 2
+      tilt_order =  $tilt_order + 1
+      group_end = $group_end  - 1
+      R
+      ReportLastFrameFile fram_name full_path full_name
+      if $flash_CFEG == 1
+         WriteLineToFile log_file $cur_angle $full_name $Isxplus $Isyplus $current_lable 0 $tilt_order $group_end R $flash_time
+    Else
+       WriteLineToFile log_file $cur_angle $full_name $Isxplus $Isyplus $current_lable 0 $tilt_order $group_end R
+    Endif 
+      FlushTextFile log_file 
+
+      file_num_add1 = $file_num_add + $tiltangle + 90
+      fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+   Endif 
+Endif 
+
+if $move_stage_instead_IS  == 2
+#record other point
+diff_angle = $cur_angle - $start_angle 
+j = 2
+Loop $group_num side_index
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+    stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+
+    skip_num = $side_index * 2 + 1
+  if  $skip_point_P[$skip_num] > 0
+     echo acquiring nav item $next_lable 
+
+    if $plus_num > 7
+          filename @= mapP_$side_index.mrc
+          ReadOtherFile 0 P $filename 
+     Else          
+           filename @= mapS_$side_index.mrc
+          ReadOtherFile 0 P $filename
+       Endif 
+
+        curr_align_num = $side_index * 2
+        side_align_X = $P_align_X[$curr_align_num]
+        side_align_Y = $P_align[$curr_align_num]
+        curr_align_num = $curr_align_num  + 1
+       X_diffcorr = $P_align_X[$curr_align_num]
+       Z_diffcorr = $P_align[$curr_align_num]
+
+    X_error = 0.001 * $side_align_X
+     Z_error = -0.001 * $side_align_Y / ( sin $diff_angle )
+     echo Z_error $Z_error um, X_error $X_error um
+
+     tracking_afterR_Zlimit_M = -1 * $tracking_afterR_Zlimit 
+     if ( $Z_error > 0.25 OR $Z_error < -0.25 ) AND $use_focus_forZ == 1
+            Z_error  = $Z_error * 0.1
+      ElseIf  $Z_error > $tracking_afterR_Zlimit   OR $Z_error < $tracking_afterR_Zlimit_M
+             Z_error  = $Z_error * 0.1
+     Endif 
+
+     tracking_afterR_Xlimit_M = -1 * $tracking_afterR_Xlimit 
+    if $X_error > $tracking_afterR_Xlimit OR $X_error < $tracking_afterR_Xlimit_M 
+          X_error  = $X_error * 0.1
+     endif
+
+     echo Z_error $Z_error um, X_error $X_error um
+
+    X_diffcorr = $X_diffcorr  + $X_error 
+     Z_diffcorr = $Z_diffcorr  + $Z_error 
+
+    stage_X_new = $X_diffcorr  
+    stage_Y_new =  $stage_Y * ( cos $diff_angle  ) - $Z_diffcorr * ( sin $diff_angle )
+
+     IS_X  = $stage_X_new  * $IS_xpx + $stage_Y_new * $IS_xpy + $Isxplus 
+     IS_Y = $stage_X_new  * $IS_ypx + $stage_Y_new * $IS_ypy + $Isyplus 
+
+     Z_defocus = ( 1 + $Z_correct  )  *  ( $stage_Y * ( sin $diff_angle  ) + $Z_diffcorr * ( cos $diff_angle  )  ) + $focusplus
+
+    SetDefocus $Z_defocus
+
+    if $autoloader == 1
+       CallFunction Tomo_group_X::check_autofill
+    Endif 
+
+
+   SetImageShift $IS_X $IS_Y 1 1
+
+   R
+   if $camera == 1 or $camera == 2
+    ReportLastFrameFile fram_name full_path full_name
+ Else
+    fram_name @= Nav_lable_$next_lable_$file_num_add.mrc
+    OpenOldFile $fram_name 
+    Save A
+    CloseFile
+ Endif 
+
+    skip_num = $side_index * 2 
+    skip_point_P[$skip_num] = $skip_point_P[$skip_num] + 1
+    tilt_order = $skip_point_P[$skip_num] + $skip_point_M[$skip_num] + 1
+
+    skip_num = $skip_num + 1
+
+    ReportMeanCounts A 
+    current_dose = $reportedValue1 
+    echo current_dose  $current_dose 
+    If  $current_dose < $skip_value_limit 
+       skip_point_P[$skip_num] = 0
+       group_end = $skip_point_P[$skip_num] + $skip_point_M[$skip_num]
+       if $group_end == 1
+          group_end  = 2
+       ElseIf $group_end == 0
+          group_end  = 1
+       Endif 
+       echo plan to skip nav item $next_lable 
+    Else
+       group_end = $skip_point_P[$skip_num] + $skip_point_M[$skip_num]
+     skip_point_P[$skip_num] = $skip_point_P[$skip_num] - 1
+  Endif 
+
+  if $flash_CFEG == 1
+   WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $next_lable $Z_error $tilt_order $group_end R $flash_time
+  Else
+    WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $next_lable $Z_error $tilt_order $group_end R
+   Endif 
+    FlushTextFile log_file 
+
+   if $camera == 1 or $camera == 2
+      file_num_add1 = $file_num_add + $tiltangle + 90
+      fram_name @= Nav_lable_$next_lable_$file_num_add1_$tiltangle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+ Endif 
+
+    rest_num = MODULO $plus_num 6
+    if $rest_num == 5
+        filename @= mapP_$side_index.mrc
+        RemoveFile $filename 
+        SaveToOtherFile A MRC CUR $filename
+   Endif 
+        AlignTo P 1
+        ReportAlignShift
+        side_align_X = $reportedValue5
+        side_align_Y = $reportedValue6
+        curr_align_num = $side_index * 2
+
+        if $plus_num > 3 AND $align_low_angle_only == 1
+             P_align_X[$curr_align_num] = 0.0
+             P_align[$curr_align_num] = 0.0
+          Else
+           P_align_X[$curr_align_num] = $side_align_X
+           P_align[$curr_align_num] = $side_align_Y
+
+           if $M_align[$curr_align_num] == 0.0
+                M_align[$curr_align_num] = -1 * $side_align_Y
+             Endif 
+          Endif 
+          
+        curr_align_num = $curr_align_num  + 1
+         P_align_X[$curr_align_num] = $X_diffcorr  
+         P_align[$curr_align_num] = $Z_diffcorr 
+
+      Else
+         echo skip nav item $next_lable 
+      Endif 
+
+EndLoop
+Endif 
+EndFunction 
+
+Function TiltMinus
+echo TiltMinus
+#tilt stage with backlash
+if $data_mode == 1 or $data_mode == 2  
+  Tiltbacklash_C =  $tiltangle + $Tiltbacklash
+  TiltTo $Tiltbacklash_C
+  TiltTo $tiltangle
+  GoToLowDoseArea  R
+ElseIf 
+   WalkUpTo $tiltangle
+   GoToLowDoseArea  R
+   NormalizeAllLenses 
+   delay 2
+Endif 
+
+ReportTiltAngle cur_angle
+   
+#set defocus and image shift
+SetDefocus $focusmin
+
+if $move_stage_instead_IS  == 1
+   MoveStageTo $StageX_M  $StageY_M
+Else
+   SetImageShift $Isxminus $Isyminus 1 1
+Endif 
+
+#drift and tracking
+T
+AlignTo L
+ReportAlignShift
+dx = $reportedValue3
+dy = $reportedValue4
+dist = sqrt $dx * $dx + $dy * $dy
+echo $dist Alignment 
+if $dist > $tracking_Vswitch  AND  $move_stage_instead_IS  ==  2
+    ClearAlignment 
+    V
+    AlignTo G
+    V
+   Copy A G
+   file_num_add1 = $file_num_add + $tiltangle + 90
+   fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_V.jpg
+   SaveToOtherFile A JPEG JPEG $fram_name
+   GoToLowDoseArea R
+   NormalizeAllLenses 
+   delay 3
+   T
+    AlignTo L
+Endif 
+   T
+    Copy A L
+    file_num_add1 = $file_num_add + $tiltangle + 90
+    fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_T.jpg
+    SaveToOtherFile A JPEG JPEG $fram_name
+
+G 
+ReportFocusDrift  dx dy
+dist = sqrt  ( $dx * $dx + $dy * $dy )
+rate = $dist  * 10
+echo Rate = $rate A/Sec
+
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+
+if $rate < $driftcrit
+   echo Drift is low enough
+Else
+   T
+   Loop $drifttimes index
+            AlignTo L
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                         Delay 10
+                         T 
+              Else
+                            echo Drift never got below $driftcrit; Skipping........
+                             break
+                Endif
+     Endloop
+Endif 
+
+#store defocus
+   GoToLowDoseArea R
+ReportDefocus focusmin 
+#store image shifts
+if $move_stage_instead_IS  == 1
+   Loop $resetIS_times  index
+      ResetImageShift 
+      Delay 2 sec
+      T
+      AlignTo L
+      ReportAlignShift
+      dx = $reportedValue3
+      dy = $reportedValue4
+      dist = sqrt $dx * $dx + $dy * $dy
+
+     If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      SetImageShift 0 0
+      SetObjectiveStigmator  $stigma_ori_X   $stigma_ori_Y 
+      SetBeamTilt   $current_coma_ori_X   $current_coma_ori_Y
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist nm
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+      SetImageShift 0 0
+      SetObjectiveStigmator  $stigma_ori_X   $stigma_ori_Y 
+      SetBeamTilt   $current_coma_ori_X   $current_coma_ori_Y
+   Endif 
+   EndLoop 
+   ReportStageXYZ  $StageX_M  $StageY_M
+Endif 
+ReportImageShift
+Isxminus = $RepVal1
+Isyminus = $RepVal2
+
+if $camera == 3
+   tilt_order =  $tilt_order + 1
+   group_end = $group_end  - 1
+   fram_name @= Nav_lable_$current_lable_$file_num_add.mrc
+   OpenOldFile $fram_name 
+   R
+   Save
+   CloseFile
+
+   WriteLineToFile log_file $cur_angle $fram_name $Isxplus $Isyplus $current_lable 0 $tilt_order $group_end R
+   FlushTextFile log_file 
+ElseIf  $move_stage_instead_IS  == 1
+   if $camera == 1 or $camera == 2
+      tilt_order =  $tilt_order + 1
+      group_end = $group_end  - 1
+      R
+      ReportLastFrameFile fram_name full_path full_name
+      if $flash_CFEG == 1
+         WriteLineToFile log_file $cur_angle $full_name $Isxplus $Isyplus $current_lable 0 $tilt_order $group_end R $flash_time
+    Else
+       WriteLineToFile log_file $cur_angle $full_name $Isxplus $Isyplus $current_lable 0 $tilt_order $group_end R
+    Endif 
+      FlushTextFile log_file 
+
+      file_num_add1 = $file_num_add + $tiltangle + 90
+      fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+   Endif 
+Endif 
+
+if $move_stage_instead_IS  == 2
+#record other point
+diff_angle = $cur_angle - $start_angle 
+j = 2
+Loop $group_num side_index
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+   stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+
+    skip_num = $side_index * 2 + 1
+  if  $skip_point_M[$skip_num] > 0
+     echo acquiring nav item $next_lable 
+    if $minus_num  > 7
+          filename @= mapM_$side_index.mrc
+          ReadOtherFile 0 P $filename 
+     Else          
+           filename @= mapS_$side_index.mrc
+          ReadOtherFile 0 P $filename
+       Endif 
+
+        curr_align_num = $side_index * 2
+        side_align_X = $M_align_X[$curr_align_num]
+        side_align_Y = $M_align[$curr_align_num]
+        curr_align_num = $curr_align_num  + 1
+       X_diffcorr = $M_align_X[$curr_align_num]
+       Z_diffcorr = $M_align[$curr_align_num]
+
+    X_error = 0.001 * $side_align_X
+     Z_error = -0.001 * $side_align_Y / ( sin $diff_angle )
+     echo Z_error $Z_error um, X_error $X_error um
+
+     tracking_afterR_Zlimit_M = -1 * $tracking_afterR_Zlimit 
+     if ( $Z_error > 0.25 OR $Z_error < -0.25 ) AND $use_focus_forZ == 1
+            Z_error  = $Z_error * 0.1
+      ElseIf  $Z_error > $tracking_afterR_Zlimit   OR $Z_error < $tracking_afterR_Zlimit_M
+             Z_error  = $Z_error * 0.1
+     Endif 
+
+     tracking_afterR_Xlimit_M = -1 * $tracking_afterR_Xlimit 
+    if $X_error > $tracking_afterR_Xlimit OR $X_error < $tracking_afterR_Xlimit_M 
+          X_error  = $X_error * 0.1
+     endif
+
+     X_diffcorr = $X_diffcorr  + $X_error 
+     Z_diffcorr = $Z_diffcorr  + $Z_error 
+
+    stage_X_new = $X_diffcorr  
+    stage_Y_new =  $stage_Y * ( cos $diff_angle  ) - $Z_diffcorr * ( sin $diff_angle  )
+
+     IS_X  = $stage_X_new  * $IS_xpx + $stage_Y_new * $IS_xpy + $Isxminus 
+     IS_Y = $stage_X_new * $IS_ypx + $stage_Y_new * $IS_ypy + $Isyminus 
+
+    Z_defocus = ( 1 + $Z_correct  )  * ( $stage_Y * ( sin $diff_angle  ) + $Z_diffcorr * ( cos $diff_angle  )  )  + $focusmin
+
+    SetDefocus $Z_defocus
+    if $autoloader == 1
+      CallFunction Tomo_group_X::check_autofill
+    Endif 
+
+   If  $move_stage_instead_IS  == 1
+      SetImageShift $IS_X $IS_Y
+      ResetImageShift 
+   Else
+   SetImageShift $IS_X $IS_Y 1 1
+Endif 
+
+    R
+   if $camera == 1 or $camera == 2
+    ReportLastFrameFile fram_name full_path full_name
+ Else
+    fram_name @= Nav_lable_$next_lable_$file_num_add.mrc
+    OpenOldFile $fram_name 
+    Save A
+    CloseFile
+ Endif 
+
+    skip_num = $side_index * 2 
+    skip_point_M[$skip_num] = $skip_point_M[$skip_num] + 1
+    tilt_order = $skip_point_P[$skip_num] + $skip_point_M[$skip_num] + 1
+
+    skip_num = $skip_num + 1
+    
+    ReportMeanCounts A 
+    current_dose = $reportedValue1 
+    echo current_dose  $current_dose 
+    If  $current_dose < $skip_value_limit 
+       skip_point_M[$skip_num] = 0
+       group_end = $skip_point_P[$skip_num] + $skip_point_M[$skip_num]
+       if $group_end == 1
+          group_end  = 2
+       ElseIf $group_end == 0
+          group_end  = 1
+       Endif 
+       echo plan to skip nav item $next_lable 
+    Else
+       group_end = $skip_point_P[$skip_num] + $skip_point_M[$skip_num]
+     skip_point_M[$skip_num] = $skip_point_M[$skip_num] - 1
+  Endif 
+
+    if $flash_CFEG == 1
+     WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $next_lable $Z_error $tilt_order $group_end R $flash_time
+    Else
+     WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $next_lable $Z_error $tilt_order $group_end R
+    Endif 
+    FlushTextFile log_file 
+
+   if $camera == 1 or $camera == 2
+      file_num_add1 = $file_num_add + $tiltangle + 90
+      fram_name @= Nav_lable_$next_lable_$file_num_add1_$tiltangle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+ Endif 
+
+    rest_num = MODULO $minus_num 6
+    if $rest_num == 5
+        filename @= mapM_$side_index.mrc
+        RemoveFile $filename 
+        SaveToOtherFile A MRC CUR $filename
+   Endif 
+        AlignTo P 1
+        ReportAlignShift
+        side_align_X = $reportedValue5
+        side_align_Y = $reportedValue6
+        curr_align_num = $side_index * 2
+
+        if $minus_num > 3  AND $align_low_angle_only == 1
+           M_align_X[$curr_align_num] = 0.0
+           M_align[$curr_align_num] = 0.0
+        Else
+           M_align_X[$curr_align_num] = $side_align_X
+           M_align[$curr_align_num] = $side_align_Y
+        Endif 
+
+        curr_align_num = $curr_align_num  + 1
+         M_align_X[$curr_align_num] = $X_diffcorr 
+         M_align[$curr_align_num] = $Z_diffcorr 
+
+      Else
+         echo skip nav item $next_lable 
+      Endif 
+
+EndLoop
+Endif 
+EndFunction 
+
+Function tiltup_by_step
+echo tiltup_by_step
+ReportTiltAngle last_angle
+
+tilt_range = $tiltangle - $last_angle
+inter_step = 6
+SetTiltIncrement $inter_step 
+two_inter_step  = 2 * $inter_step 
+
+if $tilt_range > $two_inter_step  
+ Loop 100
+  Try 1
+   TiltUp 
+   Catch 
+      Delay 1 sec
+      TiltUp 
+   EndTry 
+   ReportTiltAngle last_angle
+   tilt_range = $tiltangle - $last_angle 
+  if $tilt_range < $inter_step 
+   break
+  Endif 
+ EndLoop 
+Endif 
+
+Try 1
+   TiltTo $tiltangle 
+Catch 
+   Delay 1 sec
+   TiltTo $tiltangle 
+EndTry 
+EndFunction  
+
+Function tiltdown_by_step
+echo tiltdown_by_step
+
+ReportTiltAngle last_angle
+
+tilt_range = $last_angle - $tiltangle - $Tiltbacklash 
+inter_step = 6
+SetTiltIncrement $inter_step 
+two_inter_step  = 2 * $inter_step 
+
+if $tilt_range > $two_inter_step  
+ Loop 100
+  Try 1
+         TiltDown 
+      Catch 
+         Delay 1 sec
+         TiltDown 
+      EndTry 
+      ReportTiltAngle last_angle
+      tilt_range = $last_angle - $tiltangle + 3
+  if $tilt_range < $inter_step 
+   break
+  Endif 
+ EndLoop 
+Endif 
+
+tilt_range = $tiltangle + $Tiltbacklash 
+
+Try 1
+   TiltTo $tilt_range 
+Catch 
+   Delay 1 sec
+   TiltTo $tilt_range 
+EndTry 
+
+Try 1
+   TiltTo $tiltangle 
+Catch 
+   Delay 1 sec
+   TiltTo $tiltangle 
+EndTry 
+EndFunction 
+
+Function exp_time_set
+   i = 1
+   Loop $max_point_in_group 
+      next_index = $current_index + $i
+      Try 1
+         ReportOtherItem $next_index 
+         next_note = $navNote
+         next_lable = $navLabel
+         next_item_type = $reportedValue5
+         if $next_note == $current_note OR $next_item_type > 0
+             echo touch next group at $next_lable 
+             Break 
+         Endif 
+      Catch 
+        echo touch next group at $next_lable 
+        Break 
+     EndTry 
+
+     i = $i + 1
+  EndLoop 
+
+if $data_mode == 1 or $data_mode == 2
+   if   $camera == 1
+      exp_time =  ( (  $R_delay + 0.28 )  *  ( $in_hole_num * ( $i - 1 )  ) ) + 1.5
+      echo  exp_time =  ( (  $R_delay + 0.28 )  *  ( $in_hole_num * ( $i - 1 )  ) ) + 1.5
+   ElseIf $camera == 2
+      exp_time =  ( (  $R_delay + 0.26 )  *  ( $in_hole_num * ( $i - 1 )  ) ) + 0.6
+      echo  exp_time =  ( (  $R_delay + 0.26 )  *  ( $in_hole_num * ( $i - 1 )  ) ) + 0.6
+   Endif 
+Else
+  if  $camera == 1
+      exp_time =  ( (  $R_delay + 0.26 )  *  ( $in_hole_num *  $i )   ) + 1.5
+      echo  exp_time =  ( (  $R_delay + 0.26 )  *  ( $in_hole_num *  $i   ) ) + 1.5
+   ElseIf  $camera == 2
+     exp_time =  ( (  $R_delay + 0.26 )  *  ( $in_hole_num *  $i  ) ) + 0.6
+     echo  ( (  $R_delay + 0.26 )  *  ( $in_hole_num *  $i  ) ) + 0.6
+   Endif 
+ Endif 
+  echo $exp_time sec
+  SetExposure R $exp_time 
+  SetContinuous R 1
+EndFunction 
+
+Function adjust_ObS_coma
+ReportImageShift 
+IS_X_unit = $RepVal1
+IS_Y_unit = $RepVal2
+
+coma_X  = $IS_X_unit * $BT_xpx + $IS_Y_unit * $BT_xpy + $current_coma_ori_X 
+coma_Y  = $IS_X_unit * $BT_ypx + $IS_Y_unit * $BT_ypy + $current_coma_ori_Y 
+#echo $coma_X $coma_Y
+SetBeamTilt  $coma_X $coma_Y
+
+stigma_X = $IS_X_unit * $ObjVsISmatrix[1] + $IS_Y_unit * $ObjVsISmatrix[2] + $stigma_ori_X 
+stigma_Y = $IS_X_unit * $ObjVsISmatrix[3] + $IS_Y_unit * $ObjVsISmatrix[4] + $stigma_ori_Y 
+#echo $stigma_X $stigma_Y
+SetObjectiveStigmator $stigma_X $stigma_Y
+
+EndFunction
+
+Function save_log
+ echo save_log
+
+   tomo_log_name @= $full_pathSP_log.txt
+
+   Try 1
+      OpenTextFile log_file W 0 $tomo_log_name 
+   Catch 
+      OpenTextFile log_file A 0 $tomo_log_name 
+   EndTry 
+
+   if $flash_CFEG == 1
+    WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $current_lable $next_lable 1 R $flash_time
+   Else
+    WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $current_lable $next_lable 1 R
+   Endif 
+   FlushTextFile log_file 
+
+      Try 1
+      OpenTextFile FASTlog_file W 0 $FAST_log 
+   Catch 
+      OpenTextFile FASTlog_file A 0 $FAST_log 
+   EndTry 
+
+   q = 1
+   if  $data_mode == 1 or $data_mode == 2
+       loop_num = $in_hole_num *  $group_num
+   Else 
+      loop_num = $in_hole_num * ( $group_num  + 1 )
+   Endif 
+
+   Loop $loop_num 
+      q = $q + 1
+      IS_X = $FAST_log_array[$q]
+      q = $q + 1
+      IS_Y = $FAST_log_array[$q]
+      q = $q + 1
+      next_lable = $FAST_log_array[$q]
+
+      if $flash_CFEG == 1
+         WriteLineToFile FASTlog_file $cur_angle $IS_X $IS_Y $current_lable $next_lable 1 R $flash_time
+      Else
+         WriteLineToFile FASTlog_file $cur_angle $IS_X $IS_Y $current_lable $next_lable 1 R
+      Endif 
+      
+   EndLoop 
+   CloseTextFile FASTlog_file 
+EndFunction 
+
+Function save_FASTlog
+   group_end = $group_end - 1
+      Try 1
+      OpenTextFile FASTlog_file W 0 $FAST_log 
+   Catch 
+      OpenTextFile FASTlog_file A 0 $FAST_log 
+   EndTry 
+
+   q = 1
+   if  $data_mode == 1 or $data_mode == 2
+       loop_num = $in_hole_num *  $group_num
+   Else 
+      loop_num = $in_hole_num * ( $group_num  + 1 )
+   Endif 
+
+   Loop $loop_num 
+      q = $q + 1
+      IS_X = $FAST_log_array[$q]
+      q = $q + 1
+      IS_Y = $FAST_log_array[$q]
+      q = $q + 1
+      next_lable = $FAST_log_array[$q]
+      q = $q + 1
+      Z_error = $FAST_log_array[$q]
+
+      if $flash_CFEG == 1
+         WriteLineToFile FASTlog_file $cur_angle $IS_X $IS_Y $next_lable $Z_error $k $group_end R $flash_time
+      Else
+         WriteLineToFile FASTlog_file $cur_angle $IS_X $IS_Y $next_lable $Z_error $k $group_end R
+      Endif 
+  EndLoop 
+   CloseTextFile FASTlog_file 
+EndFunction 
+
+Function TiltZero_fast
+echo TiltZero_fast
+FAST_log_array = {0 }
+
+if $flash_CFEG == 1
+  CallFunction Tomo_group_X::check_Flash_FEG
+  ReportMinuteTime flash_time
+ Endif 
+
+if $do_eucentric_fine  == 1
+ CallFunction Tomo_group_X::move_stage
+ SetExposure V 0.5
+ SetBinning V 1
+       Eucentricity 2
+       UpdateItemZ
+       RestoreCameraSet V
+       ReportNavItem 
+       current_Z = $reportedValue4
+       tiltangle = $start_angle
+       CallFunction Tomo_group_X::check_stage
+ElseIf $do_eucentric_fine  == 3
+ CallFunction Tomo_group_X::move_stage
+ SetExposure V 0.5
+ SetBinning V 1
+       Eucentricity 1
+       UpdateItemZ
+       RestoreCameraSet V
+       ReportNavItem 
+       current_Z = $reportedValue4
+       tiltangle = $start_angle
+       CallFunction Tomo_group_X::check_stage
+Else
+ tiltangle = $start_angle
+ CallFunction Tomo_group_X::check_stage
+Endif 
+
+if $accurate_position == 1
+   filename @= map_item$current_lable.mrc
+   echo read file $filename
+   ReadOtherFile 0 P $filename
+
+   V
+CallFunction Tomo_group_X::resetIS_1
+
+V
+Copy A H
+Copy A G
+
+Endif 
+
+CallFunction Tomo_group_X::tomo_group_V_p2
+
+ReportStageXYZ StageX StageY StageZ
+CallFunction Tomo_group_X::focus_value
+G
+G
+ReportDefocus
+focusplus = $RepVal1
+ReportFocusDrift  dx dy
+dist = sqrt  ( $dx * $dx + $dy * $dy )
+rate = $dist  * 10
+echo Rate = $rate A/Sec
+
+#drift and tracking
+T
+Copy A K
+Copy A L
+if $rate < $driftcrit
+   echo Drift is low enough
+   if $autoloader == 1
+      CallFunction Tomo_group_X::check_autofill
+   Endif 
+Else
+   Delay 10
+   T
+   if $autoloader == 1
+      CallFunction Tomo_group_X::check_autofill
+   Endif 
+
+   Loop $drifttimes index
+            AlignTo K
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                     Delay 10
+                     T 
+              Else
+                           echo Drift never got below $driftcrit; Skipping........
+                           break
+                Endif
+        Endloop
+Endif 
+
+#--------record first point in group--------
+
+CallFunction Tomo_group_X::exp_time_set   
+
+UseContinuousFrames 1
+If  $camera == 2
+   #EarlyReturnNextShot 0
+Endif 
+R
+SetBeamBlank 1
+If $camera == 1 or $camera == 2
+   Delay $blank_delay sec
+Endif 
+
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+
+j = 1
+loop $in_hole_num
+   j = $j + 1
+   IS_X = $Isxplus + $in_hole_serial[$j]
+   j = $j + 1
+   IS_Y = $Isyplus + $in_hole_serial[$j]
+   IS_distance_2 = $IS_X * $IS_X + $IS_Y * $IS_Y
+   IS_distance = SQRT $IS_distance_2
+   IS_index = ATAN2 $IS_Y $IS_X
+
+   SetBeamBlank 1
+   SetImageShift $IS_X $IS_Y
+   CallFunction Tomo_group_X::adjust_ObS_coma
+   SetBeamBlank 0
+   Delay $R_delay
+   SetBeamBlank 1
+   echo record at Nav item $current_lable start at group $current_lable
+   FAST_log_array = { $FAST_log_array $IS_X $IS_Y $current_lable }
+
+EndLoop 
+
+#--------record rest points in group--------
+i = 2
+Loop $group_num side_index
+   stage_Y = $array_dis_ang[$i]
+     i = $i + 1
+    stage_Z = $array_dis_ang[$i]
+     i = $i + 1
+     next_lable = $array_dis_ang[$i]
+     i = $i + 1
+
+     curr_align_num = $side_index * 2
+     curr_align_num = $curr_align_num  + 1
+     stage_X = $P_align_X[$curr_align_num]
+
+     IS_X_a  = $stage_X * $IS_xpx + $stage_Y * $IS_xpy + $Isxplus 
+     IS_Y_a = $stage_X  * $IS_ypx + $stage_Y * $IS_ypy + $Isyplus 
+
+        Z_defocus_toset =  ( 1 + $Z_correct  )   * $stage_Z  + $focusplus
+       SetDefocus $Z_defocus_toset 
+        Z_diff =   $stage_Z
+   
+    j = 1
+    loop $in_hole_num
+         j = $j + 1
+         IS_X  = $IS_X_a   + $in_hole_serial[$j]
+         j = $j + 1
+       IS_Y =  $IS_Y_a   + $in_hole_serial[$j]
+
+          SetBeamBlank 1
+          SetImageShift $IS_X $IS_Y
+          CallFunction Tomo_group_X::adjust_ObS_coma
+          SetBeamBlank 0
+           Delay $R_delay
+          SetBeamBlank 1
+          echo record at Nav item $next_lable start at group $current_lable
+          FAST_log_array = { $FAST_log_array $IS_X $IS_Y $next_lable  }
+
+     EndLoop 
+EndLoop 
+if $backgroud_stage == 1
+   CallFunction Tomo_group_X::next_tilt_stage
+Endif 
+StopContinuous
+RestoreCameraSet R
+ReportLastFrameFile fram_name full_path full_name
+
+FAST_log @= $fram_name_log
+CallFunction Tomo_group_X::save_log
+EndFunction 
+
+function TiltPlus_fast
+echo TiltPlus_fast
+FAST_log_array = {0 }
+
+if $plus_num < 4
+   CallFunction Tomo_group_X::tiltup_by_step
+Else
+   CallFunction Tomo_group_X::check_stage
+Endif 
+
+Delay 2
+ReportTiltAngle cur_angle
+    
+#setdefocus and image shift
+SetDefocus $focusplus
+SetImageShift $Isxplus $Isyplus 1 1
+
+#drift and tracking
+T
+AlignTo K
+ReportAlignShift
+dx = $reportedValue3
+dy = $reportedValue4
+dist = sqrt $dx * $dx + $dy * $dy
+echo $dist Alignment 
+if $dist > $tracking_Vswitch 
+    echo $dist  ClearAlignment 
+    ClearAlignment 
+    V
+    AlignTo H
+    V
+    Copy A H
+    file_num_add1 = $file_num_add + $tiltangle + 90
+    fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_V.jpg
+    SaveToOtherFile A JPEG JPEG $fram_name
+    GoToLowDoseArea R
+    NormalizeAllLenses 
+   delay 3
+   T
+   AlignTo K
+ Endif 
+   T
+   Copy A K
+   file_num_add1 = $file_num_add + $tiltangle + 90
+    fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_T.jpg
+    SaveToOtherFile A JPEG JPEG $fram_name
+
+G
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+
+
+T
+Loop $drifttimes index
+            AlignTo K
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                         Delay 10
+                         T
+              Else
+                            echo Drift never got below $driftcrit; Skipping........
+                             break
+                Endif
+Endloop
+
+#store defocus
+   GoToLowDoseArea R
+ReportDefocus focusplus 
+#store image shifts
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+
+#record other point
+CallFunction Tomo_group_X::exp_time_set   
+UseContinuousFrames 1
+If  $camera == 2
+   #EarlyReturnNextShot 0
+Endif 
+R
+SetBeamBlank 1
+If $camera == 1 or $camera == 2
+   Delay $blank_delay sec
+Endif 
+
+diff_angle = $cur_angle - $start_angle 
+j = 2
+Loop $group_num side_index
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+    stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+
+        curr_align_num = $side_index * 2
+        side_align_X = $P_align_X[$curr_align_num]
+        side_align_Y = $P_align[$curr_align_num]
+        curr_align_num = $curr_align_num  + 1
+       X_diffcorr = $P_align_X[$curr_align_num]
+       Z_diffcorr = $P_align[$curr_align_num]
+
+    X_error = 0.001 * $side_align_X
+     Z_error = -0.001 * $side_align_Y / ( sin $diff_angle )
+
+     echo Z_error $Z_error um, X_error $X_error um
+
+     tracking_afterR_Zlimit_M = -1 * $tracking_afterR_Zlimit 
+     if ( $Z_error > 0.25 OR $Z_error < -0.25 ) AND $use_focus_forZ == 1
+            Z_error  = $Z_error * 0.1
+      ElseIf  $Z_error > $tracking_afterR_Zlimit   OR $Z_error < $tracking_afterR_Zlimit_M
+             Z_error  = $Z_error * 0.1
+     Endif 
+
+     tracking_afterR_Xlimit_M = -1 * $tracking_afterR_Xlimit 
+    if $X_error > $tracking_afterR_Xlimit OR $X_error < $tracking_afterR_Xlimit_M 
+          X_error  = $X_error * 0.1
+     endif
+
+    X_diffcorr = $X_diffcorr  + $X_error 
+     Z_diffcorr = $Z_diffcorr  + $Z_error 
+
+    stage_X_new = $X_diffcorr  
+    stage_Y_new =  $stage_Y * ( cos $diff_angle  ) - $Z_diffcorr * ( sin $diff_angle )
+
+     IS_X_a  = $stage_X_new  * $IS_xpx + $stage_Y_new * $IS_xpy + $Isxplus 
+     IS_Y_a = $stage_X_new  * $IS_ypx + $stage_Y_new * $IS_ypy + $Isyplus 
+
+     Z_defocus = ( 1 + $Z_correct  )  *  ( $stage_Y * ( sin $diff_angle  ) + $Z_diffcorr * ( cos $diff_angle  )  ) + $focusplus
+
+    SetDefocus $Z_defocus
+
+    i = 1
+    loop $in_hole_num
+         i = $i + 1
+         IS_X  = $IS_X_a   + $in_hole_serial[$i]
+         i = $i + 1
+       IS_Y =  $IS_Y_a   + $in_hole_serial[$i]
+
+   SetBeamBlank 1
+   SetImageShift $IS_X $IS_Y
+   CallFunction Tomo_group_X::adjust_ObS_coma
+   SetBeamBlank 0
+   Delay $R_delay
+   SetBeamBlank 1
+   echo record at Nav item $next_lable start at group $current_lable
+   FAST_log_array = { $FAST_log_array $IS_X $IS_Y $next_lable  $Z_error }
+  EndLoop 
+
+        curr_align_num = $side_index * 2
+        P_align_X[$curr_align_num] = 0.0
+        P_align[$curr_align_num] = 0.0
+
+        curr_align_num = $curr_align_num  + 1
+         P_align_X[$curr_align_num] = $X_diffcorr 
+         P_align[$curr_align_num] = $Z_diffcorr 
+
+         
+EndLoop
+if $backgroud_stage == 1
+   CallFunction Tomo_group_X::next_tilt_stage
+Endif 
+StopContinuous
+RestoreCameraSet R
+ReportLastFrameFile fram_name full_path full_name
+if $flash_CFEG == 1
+ WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $current_lable $next_lable $k $group_end R $flash_time
+Else
+ WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $current_lable $next_lable $k $group_end R
+Endif 
+FlushTextFile log_file 
+
+FAST_log @= $fram_name_log
+CallFunction Tomo_group_X::save_FASTlog
+
+EndFunction 
+
+Function TiltMinus_fast
+echo TiltMinus_fast
+
+CallFunction Tomo_group_X::check_stage
+FAST_log_array = {0 }
+ReportTiltAngle cur_angle
+  
+#set defocus and image shift
+SetDefocus $focusmin
+SetImageShift $Isxminus $Isyminus 1 1
+
+#drift and tracking
+T
+AlignTo L
+ReportAlignShift
+dx = $reportedValue3
+dy = $reportedValue4
+dist = sqrt $dx * $dx + $dy * $dy
+echo $dist Alignment 
+if $dist > $tracking_Vswitch 
+     echo $dist  ClearAlignment 
+    ClearAlignment 
+    V
+    AlignTo G
+   V
+   Copy A G
+   file_num_add1 = $file_num_add + $tiltangle + 90
+    fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_V.jpg
+    SaveToOtherFile A JPEG JPEG $fram_name
+    GoToLowDoseArea R
+   NormalizeAllLenses 
+   delay 3
+   T
+    AlignTo L
+Endif 
+   T
+    Copy A L
+    file_num_add1 = $file_num_add + $tiltangle + 90
+    fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_T.jpg
+    SaveToOtherFile A JPEG JPEG $fram_name
+
+G 
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+
+T
+Loop $drifttimes index
+            AlignTo L
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                         Delay 10
+                         T 
+              Else
+                            echo Drift never got below $driftcrit; Skipping........
+                             break
+                Endif
+Endloop
+
+#store defocus
+   GoToLowDoseArea R
+ReportDefocus focusmin 
+#store image shifts
+ReportImageShift
+Isxminus = $RepVal1
+Isyminus = $RepVal2
+
+#record other point
+CallFunction Tomo_group_X::exp_time_set   
+UseContinuousFrames 1
+If  $camera == 2
+   #EarlyReturnNextShot 0
+Endif 
+R
+SetBeamBlank 1
+If $camera == 1 or $camera == 2
+   Delay $blank_delay sec
+Endif 
+
+diff_angle = $cur_angle - $start_angle 
+j = 2
+Loop $group_num side_index
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+   stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+
+        curr_align_num = $side_index * 2
+        side_align_X = $M_align_X[$curr_align_num]
+        side_align_Y = $M_align[$curr_align_num]
+        curr_align_num = $curr_align_num  + 1
+       X_diffcorr = $M_align_X[$curr_align_num]
+       Z_diffcorr = $M_align[$curr_align_num]
+
+    X_error = 0.001 * $side_align_X
+     Z_error = -0.001 * $side_align_Y / ( sin $diff_angle )
+     echo Z_error $Z_error um, X_error $X_error um
+
+     tracking_afterR_Zlimit_M = -1 * $tracking_afterR_Zlimit 
+     if ( $Z_error > 0.25 OR $Z_error < -0.25 ) AND $use_focus_forZ == 1
+            Z_error  = $Z_error * 0.1
+      ElseIf  $Z_error > $tracking_afterR_Zlimit   OR $Z_error < $tracking_afterR_Zlimit_M
+             Z_error  = $Z_error * 0.1
+     Endif 
+
+     tracking_afterR_Xlimit_M = -1 * $tracking_afterR_Xlimit 
+    if $X_error > $tracking_afterR_Xlimit OR $X_error < $tracking_afterR_Xlimit_M 
+          X_error  = $X_error * 0.1
+     endif
+
+     X_diffcorr = $X_diffcorr  + $X_error 
+     Z_diffcorr = $Z_diffcorr  + $Z_error 
+
+    stage_X_new = $X_diffcorr  
+    stage_Y_new =  $stage_Y * ( cos $diff_angle  ) - $Z_diffcorr * ( sin $diff_angle  )
+
+     IS_X_a  = $stage_X_new  * $IS_xpx + $stage_Y_new * $IS_xpy + $Isxminus 
+     IS_Y_a = $stage_X_new * $IS_ypx + $stage_Y_new * $IS_ypy + $Isyminus 
+
+    Z_defocus = ( 1 + $Z_correct  )  * ( $stage_Y * ( sin $diff_angle  ) + $Z_diffcorr * ( cos $diff_angle  )  )  + $focusmin
+
+    SetDefocus $Z_defocus
+
+    i = 1
+    loop $in_hole_num
+         i = $i + 1
+         IS_X  = $IS_X_a   + $in_hole_serial[$i]
+         i = $i + 1
+       IS_Y =  $IS_Y_a   + $in_hole_serial[$i]
+
+   SetBeamBlank 1
+   SetImageShift $IS_X $IS_Y
+   CallFunction Tomo_group_X::adjust_ObS_coma
+   SetBeamBlank 0
+   Delay $R_delay
+   SetBeamBlank 1
+   echo record at Nav item $next_lable start at group $current_lable
+   FAST_log_array = { $FAST_log_array $IS_X $IS_Y $next_lable  $Z_error }
+  EndLoop 
+
+       curr_align_num = $side_index * 2
+        M_align_X[$curr_align_num] = 0.0
+        M_align[$curr_align_num] = 0.0
+
+        curr_align_num = $curr_align_num  + 1
+         M_align_X[$curr_align_num] = $X_diffcorr 
+         M_align[$curr_align_num] = $Z_diffcorr 
+
+EndLoop
+if $backgroud_stage == 1
+   CallFunction Tomo_group_X::next_tilt_stage
+Endif 
+StopContinuous
+RestoreCameraSet R
+ReportLastFrameFile fram_name full_path full_name
+if $flash_CFEG == 1
+ WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $current_lable $next_lable $k $group_end R $flash_time
+Else
+ WriteLineToFile log_file $cur_angle $full_name $IS_X $IS_Y $current_lable $next_lable $k $group_end R
+Endif 
+FlushTextFile log_file 
+
+FAST_log @= $fram_name_log
+CallFunction Tomo_group_X::save_FASTlog
+endfunction
+
+Function next_tilt_stage
+
+tilt_file_name @= next_tilt.txt
+Try 1
+OpenTextFile tilt_file W 0 $tilt_file_name 
+Catch 
+RemoveFile $tilt_file_name 
+OpenTextFile tilt_file W 0 $tilt_file_name 
+EndTry 
+
+Try 1
+   next_tilt_angle = $angle_serial[$k+1]
+Catch 
+   next_tilt_angle = $start_angle 
+EndTry 
+
+if $fast_mode  == 1 AND $data_mode == 3
+  WriteLineToFile tilt_file $next_tilt_angle $next_X $next_Y $next_Z
+ Else
+ WriteLineToFile tilt_file $next_tilt_angle $StageX $StageY $StageZ
+Endif 
+ FlushTextFile tilt_file 
+CloseTextFile tilt_file 
+EndFunction 
+
+Function next_tilt_stage_SPA
+
+tilt_file_name @= next_tilt.txt
+Try 1
+OpenTextFile tilt_file W 0 $tilt_file_name 
+Catch 
+OpenTextFile tilt_file A 0 $tilt_file_name 
+EndTry 
+ReportTiltAngle tilt_angle
+WriteLineToFile tilt_file $tilt_angle $next_X $next_Y $next_Z
+FlushTextFile tilt_file 
+CloseTextFile tilt_file 
+EndFunction 
+
+Function check_stage
+echo check_stage
+
+if $backgroud_stage == 1
+check_times = 30
+Loop $check_times check_index
+  ReportTiltAngle cur_angle
+  diff_A = ABS ( $cur_angle - $tiltangle )
+  if $diff_A < 0.5
+     break
+   elseif $check_index < $check_times 
+      Delay 3 sec
+   Else
+      if $tiltangle  > $cur_angle 
+         CallFunction Tomo_group_X::tiltup_by_step
+      Else
+         CallFunction Tomo_group_X::tiltdown_by_step
+        Endif 
+   Endif 
+EndLoop 
+Else
+   ReportTiltAngle cur_angle
+  diff_A = ABS ( $cur_angle - $tiltangle )
+    if $diff_A > 0.5
+       if $tiltangle  > $cur_angle 
+         CallFunction Tomo_group_X::tiltup_by_step
+      Else
+         CallFunction Tomo_group_X::tiltdown_by_step
+        Endif 
+       Endif 
+Endif 
+
+Try 
+   CallFunction Tomo_group_X::move_stage
+Catch 
+   Delay 5
+   CallFunction Tomo_group_X::move_stage
+EndTry 
+
+EndFunction 
+
+Function move_stage
+
+ReportStageXYZ cur_stage_x cur_stage_y cur_stage_z
+abs_x = ABS ( $cur_stage_x  - $current_X  )
+abs_y = ABS ( $cur_stage_y  - $current_Y  )
+abs_z = ABS ( $cur_stage_z  - $current_Z  )
+if  ( $abs_x  > 0.5 ) or  ( $abs_y  > 0.5 )  or  ( $abs_z > 0.5 )
+     bck_current_X = $current_X   +  5
+    bck_current_Y = $current_Y   +  5
+   MoveStageTo $bck_current_X $bck_current_Y $current_Z 
+   MoveStageTo $current_X $current_Y 
+
+   MoveStageTo $current_X $current_Y $current_Z 
+#   echo move stage $abs_x  $abs_y  $abs_z 
+Endif 
+EndFunction 
+EndMacro
+Macro	7
+MacroName VPP_change
+#phase plate 1
+#VPP_list = { 1 3 5 8 16 18 20 22 24 29 31 33 36 38 41 43 45 47 49 55 57 58 60 62 70 72 75 }
+#phase plate 2
+#VPP_list = { 1 3 5 8 10 12 15 17 19 20 22 24 27 29 31 34 36 38 40 42 44 47 50 52 54 56 59 63 65 67 69 71 73 75 }
+
+#phase plate 3
+VPP_list = { 1 3 5 7 9 12 14 17 19 20 22 26 28 30 33 35 37 39 41 44 47 50 52 54 57 58 60 62 64 66 69 73 75 }
+
+#phase plate 4
+#VPP_list = { 2 6 8 17 19 20 22 24 27 35 37 39 43 50 54 57 58 74 76 }
+#phase plate 5
+#VPP_list = { 2 4 16 18 20 23 28 31 35 38 39 42 45 47 50 54 56 58 60 64 66 69 71 73 75 }
+#phase plate 6
+#VPP_list = { 2 4 7 9 14 16 18 20 22 24 26 28 31 33 35 37 39 41 43 47 50 52 54 58 60 62 65 68 71 73 75 }
+
+CallFunction VPP_change::next_VPP
+#Delay 2 min
+SetImageShift 0 0
+GoToLowDoseArea R
+ScreenDown 
+
+#===================
+Function next_VPP
+   VPP_position_num  = $#VPP_list 
+   ReportPhasePlatePos VPP_position
+   Loop $VPP_position_num  VPP_index
+      echo $VPP_position $VPP_list[$VPP_index]
+      if $VPP_position ==  $VPP_list[$VPP_index]
+         next_VPP_index = $VPP_index + 1
+         if $next_VPP_index  < $VPP_position_num  
+            Break
+         ElseIf $next_VPP_index  == $VPP_position_num  
+            Break 
+         Elseif $next_VPP_index  > $VPP_position_num  
+            next_VPP_index  = 1
+         Endif 
+      Endif 
+   EndLoop 
+  
+   Try
+      target_VPP =  $VPP_list[$next_VPP_index]
+   Catch 
+      VPP_position_num  =  $VPP_position_num  / 2
+      target_VPP =  $VPP_list[$VPP_position_num]
+   EndTry 
+   Loop 77
+      PhasePlateToNextPos
+      ReportPhasePlatePos VPP_position
+      if $VPP_position == $target_VPP 
+         Break 
+      Endif 
+   EndLoop 
+
+EndFunction 
+EndMacro
+Macro	8
+MacroName VPP_continues
+
+CallFunction VPP_continues::single_position
+#CallFunction VPP_continues::multi_position
+#=============
+Function single_position
+   SetImageShift 0 0 1 1
+Loop 500  VPP_con_index
+   T
+   CtfFind A -0.3  -2 0 0 0 90 0 0 
+   PS_Pi = $reportedValue4 / 180
+   echo $VPP_con_index   $PS_Pi Pi
+   if $PS_Pi  > 0.49
+      Break 
+   Endif 
+EndLoop 
+EndFunction 
+
+Function multi_position
+   SetImageShift 0 0 1 1
+   T
+      CtfFind A -0.3  -2 0 0 0 90 0 0 
+      PS_Pi = $reportedValue4 / 180
+      echo 0 0 VPP   $PS_Pi Pi
+
+   IS_distance = 0.5
+   IS_position = 4
+   IS_start_angle = 30
+   IS_step = 360 / $IS_position 
+   Loop $IS_position IS_index
+      IS_angle = $IS_start_angle + $IS_step * ( $IS_index - 1 )
+      IS_cos = cos $IS_angle
+      IS_sin = sin $IS_angle
+      IS_X = $IS_distance * $IS_cos 
+      IS_Y = $IS_distance * $IS_sin 
+
+      SetImageShift $IS_X $IS_Y 1 1
+      T
+      CtfFind A -0.3  -2 0 0 0 90 0 0 
+      PS_Pi = $reportedValue4 / 180
+      echo $IS_X $IS_Y VPP   $PS_Pi Pi
+   EndLoop 
+   SetImageShift 0 0 1 1
+EndFunction 
+EndMacro
+Macro	9
+MacroName VPP_activation
+Delay 2 min
+Pause set C2 aperture to 150 um
+SetBeamBlank 0
+Delay  20  min
+SetBeamBlank 1
+#ScreenUp 
+Pause set C2 aperture to 70 um
+EndMacro
+Macro	11
+MacroName Tomo_group_V
+
+CallMacro 1
+
+ReportNavItem 
+current_index = $reportedValue1
+current_X = $reportedValue2
+current_Y = $reportedValue3
+current_Z = $reportedValue4
+current_note = $navNote
+current_lable = $navLabel
+
+MoveStageTo $current_X $current_Y $current_Z 
+TiltTo $start_angle 
+
+   filename @= map_item$current_lable.mrc
+   ReadOtherFile 0 P $filename
+   echo read file $filename
+
+   V
+CallFunction Tomo_group_V_p2::resetIS_1
+
+GoToLowDoseArea  R
+
+ReportMagIndex mag_index
+SpecimenToISMatrix $mag_index
+IS_xpx = -1 * $reportedValue1
+IS_xpy = -1 * $reportedValue2
+IS_ypx = -1 * $reportedValue3
+IS_ypy = -1 * $reportedValue4
+StageToSpecimenMatrix $mag_index
+SPS_xpx = -1 * $reportedValue1
+SPS_xpy = -1 * $reportedValue2
+SPS_ypx = -1 * $reportedValue3
+SPS_ypy = -1 * $reportedValue4
+ReportObjectiveStigmator stigma_ori_X stigma_ori_Y 
+ReportBeamTilt current_coma_ori_X current_coma_ori_Y 
+ReportSpecimenShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+OnStopCallFunc Tomo_group_V::reset_all
+
+if $use_V == 1
+   V
+Else
+  T
+Endif 
+
+i = 1
+Loop 50  
+    next_index = $current_index + $i
+
+    Try 
+        ReportOtherItem $next_index 
+        next_X = $reportedValue2
+        next_Y = $reportedValue3
+        next_note = $navNote
+        next_lable = $navLabel
+       if $next_note == $current_note
+             echo touch next group at $next_index
+            Break 
+       Endif 
+    Catch 
+        echo touch next group at $next_index
+        Break 
+     EndTry 
+
+    Loop 10
+    stage_X =  ( $next_X - $current_X )
+    stage_Y =  ( $next_Y - $current_Y ) * ( cos  $start_angle )
+
+       IS_X  = $stage_X * $IS_xpx + $stage_Y * $IS_xpy + $Isxplus 
+       IS_Y = $stage_X * $IS_ypx + $stage_Y * $IS_ypy + $Isyplus   
+
+    SetImageShift $IS_X $IS_Y 1 1
+
+    if $use_V == 1
+        V
+    Else
+       T
+   Endif 
+       Delay $check_delay 
+      YesNoBox adjust again
+    if $reportedValue1 == 0
+          break
+       Endif 
+
+      ReportOtherItem $next_index 
+        next_X = $reportedValue2
+        next_Y = $reportedValue3
+    EndLoop 
+
+i = $i + 1
+EndLoop 
+CallFunction Tomo_group_V::reset_all
+
+#-----functions-----
+Function reset_all
+   GoToLowDoseArea R
+     SetObjectiveStigmator $stigma_ori_X $stigma_ori_Y
+     SetBeamTilt $current_coma_ori_X $current_coma_ori_Y
+     SetImageShift 0 0
+#     TiltTo 0
+EndFunction 
+
+Function resetIS_1
+Loop $resetIS_times  index
+   ResetImageShift 
+   Delay 2 SEC
+   V
+   AlignTo P
+
+   ReportAlignShift
+   dx = $reportedValue3
+   dy = $reportedValue4
+   dist = sqrt $dx * $dx + $dy * $dy
+ 
+   If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist 
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+   Endif 
+EndLoop 
+
+EndFunction 
+EndMacro
+Macro	12
+MacroName Tomo_group_X_bck
+
+#####SETTINGS#####
+start_angle = 10        # first image stage tilt angle in degree
+exp_start_angle = 10   # expected first image stage tilt angle in degree
+min_angle = -50     # minimum stage tilt angle of the whole data, > -66
+max_angle = 50     # maximum stage tilt angle of the whole data < 70
+step        = 3              #stage tilt step in degrees
+Driftcrit = 4.5              #Angstrom/second
+min_defocus = -2.5   #minimum defocus value
+max_defocus = -3.0    #maximum defocus value
+data_mode = 1    #set 1 for dose sym tomography
+                                    #2 for one or two direction tomography 
+                                    # 3 Single particle tilt pair or tilt to fix angle (not 0 degree) for data collection
+use_focus_forZ = 2   #set 1 for focus every point to measure Z
+                                       #2 for not
+work_dir @= X:\user_data\tomo_test\
+do_eucentric_fine = 2   #set 1 for do eucentric fine each group
+                                            #2 for not
+autoloader = 2     #set 1 for TEM with autoloader 
+                                 # 2 for not
+
+skip_RealignToNavItem = 2 #set 1 for not use RealigntoNavItem
+                        #set 2 for use RealigntoNavItem
+
+Z_correct = 0
+
+#####END SETTING#####
+#---preset----
+tilttimes    =  80        #maximum loop number
+Tiltbacklash = -3    #negative tilts will be backlashed, must be negative value
+Drifttimes = 5         #maximum number of drift measurements before skipping
+Driftinterval = 10     #wait time between drift measurements in seconds, one round of autofocus takes about 10 sec
+#AbsoluteFocusLimits -10 10   #prevent runaway focus
+#FocusChangeLimits -2 2          #prevent runaway focus
+SuppressReports 
+NoMessageBoxOnError
+Require variable1
+Try 
+   SetDirectory $work_dir 
+Catch 
+   MakeDirectory $work_dir 
+   SetDirectory $work_dir 
+EndTry 
+
+#create angle serial
+angle_serial = {$start_angle }
+P_align = {0 }
+P_align_X = {0 }
+M_align = {0 }
+M_align_X = {0 }
+
+if $data_mode == 1
+  k = 1
+  Loop $tilttimes
+    #tilt plus1
+     tiltangle = $start_angle + $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+    Endif 
+    #tilt min1
+      tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+     Endif 
+    k = $k + 1
+    #tilt min2
+     tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+     Endif 
+    #tilt plus2
+      tiltangle = $start_angle +  $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+    Endif 
+    k = $k + 1
+  EndLoop
+ElseIf $data_mode == 2 or $data_mode == 3
+  #tilt plus
+  k = 1
+  Loop $tilttimes
+     tiltangle = $start_angle + $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+    Endif 
+    k = $k + 1
+  EndLoop
+
+  #tilt min
+  k = 1
+  Loop $tilttimes
+     tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+     Endif 
+    k = $k + 1
+  EndLoop
+endif
+
+echo $angle_serial
+#---before data collection----
+if $do_eucentric_fine  == 1
+       Eucentricity 2
+       UpdateItemZ
+Endif 
+
+if $skip_RealignToNavItem  == 2
+   RealignToNavItem 0 0 100 3 0
+endif
+WalkUpTo $start_angle 
+# not to restore the microscope state (set 0)
+# use single-frame acquisition mode  (set 1)
+# realigning with a new image up to 3 times (set 3) and if the starting shift is more than the criterion 100nm (set 100).
+# end with  nonzero image shift (set 0)
+
+V
+Copy A H
+Copy A G
+
+GoToLowDoseArea  R
+ReportMagIndex mag_index
+SpecimenToISMatrix $mag_index
+IS_xpx = -1 * $reportedValue1
+IS_xpy = -1 * $reportedValue2
+IS_ypx = -1 * $reportedValue3
+IS_ypy = -1 * $reportedValue4
+ReportObjectiveStigmator stigma_ori_X stigma_ori_Y 
+ReportBeamTilt current_coma_ori_X current_coma_ori_Y 
+ReportDefocus cur_focus
+NormalizeAllLenses 
+delay 2
+OnStopCallFunc Tomo_group_X::reset_all
+
+#-----data collection start------
+
+CallFunction Tomo_group_X::TiltZero
+
+k = 2
+tilt_num = $#angle_serial - 1
+plus_num = 1
+minus_num = 1
+Loop $tilt_num  
+     tiltangle = $angle_serial[$k]
+     if $angle_serial[$k] > $angle_serial[$k-1]
+           #tilt plus
+           CallFunction Tomo_group_X::TiltPlus
+          plus_num = $plus_num + 1
+     ElseIf  $angle_serial[$k] < $angle_serial[$k-1]
+           #tilt min
+           CallFunction Tomo_group_X::TiltMinus
+           minus_num = $minus_num + 1
+    Endif 
+   echo P_align $P_align 
+   echo M_align $M_align 
+    k = $k + 1
+EndLoop
+#-----data collection end------
+#-----after data collection-----
+CallFunction Tomo_group_X::reset_all
+
+#-----functions-----
+Function reset_all
+   GoToLowDoseArea R
+     SetImageShift 0 0 1 1
+     SetObjectiveStigmator $stigma_ori_X $stigma_ori_Y
+     SetBeamTilt $current_coma_ori_X $current_coma_ori_Y
+
+     SetDefocus $cur_focus
+     TiltTo 0
+     WriteLineToFile log_file tomo_end at Nav_Item $next_lable
+     FlushTextFile log_file 
+     CloseTextFile log_file 
+
+#   MoveStageTo 692.31 548.10
+#   GoToLowDoseArea R
+#   NormalizeAllLenses 
+#   Delay 3
+#   RefineZLP 30
+EndFunction 
+
+Function check_autofill
+  Loop 10
+    AreDewarsFilling
+    Filling = $reportedValue1
+    If $Filling == 0 
+       Break
+    Endif
+    Delay 2 min
+  EndLoop
+EndFunction 
+
+Function check_valve
+   ReportColumnOrGunValve valve_status
+  if $valve_status == 0
+   check_num = 1
+   Loop 30 $check_num
+      ReportVacuumGauge IGPCO IGPco_status IGPco_pressure
+     if $IGPco_status == 4
+          log_value = LOG $IGPco_pressure
+          IGPco_value = 10.1  *  ( $log_value  ) + 133.6
+          if $IGPco_value  < 30
+                  SetColumnOrGunValve 1
+                  break
+          Endif
+          Delay 1 min
+     endif
+    check_num = 1 + $check_num
+   EndLoop 
+   if $check_num >= 30
+       CallFunction Tomo_group_X::reset_all
+   endif
+ endif
+EndFunction 
+
+function TiltZero
+   Delay 2
+ReportTiltAngle cur_angle
+
+#store stage position
+ReportStageXYZ StageX StageY 
+
+#determine defocus
+target_focus =  RAND 
+target_focus = ( $max_defocus - $min_defocus ) * $target_focus + $min_defocus
+
+#drift and tracking
+SetAutofocusOffset 0
+SetTargetDefocus $target_focus
+G    
+G
+T
+Copy A K
+Copy A L
+
+Delay 10
+T
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+
+Loop $drifttimes index
+            AlignTo K
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                     Delay 10
+                     T 
+              Else
+                           echo Drift never got below $driftcrit; Skipping........
+                           break
+                Endif
+Endloop
+
+#store defocus
+GoToLowDoseArea R
+ReportDefocus
+focusplus = $RepVal1
+focusmin = $RepVal1
+ReportNavItem 
+current_index = $reportedValue1
+current_X = $reportedValue2
+current_Y = $reportedValue3
+current_note = $navNote
+current_lable = $navLabel
+#store image shifts
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+Isxminus = $RepVal1
+Isyminus = $RepVal2
+
+#acquire tilt image
+    IS_X = $Isxplus
+    IS_Y = $Isyplus 
+
+SetImageShift $IS_X $IS_Y 1 1
+R
+ReportLastFrameFile fram_name
+
+#on the fly data processing monitor
+test_name @= $fram_name_test
+OpenNewFile $test_name 
+ReportCurrentFilename 1
+fram_path = $reportedValue3
+CloseFile $test_name 
+RemoveFile $test_name 
+
+tomo_log_name @= $fram_pathtomo_log.txt
+Try 
+OpenTextFile log_file W 0 $tomo_log_name 
+Catch 
+OpenTextFile log_file A 0 $tomo_log_name 
+EndTry 
+WriteLineToFile log_file tomo_start at Nav_Item $current_lable 
+FlushTextFile log_file 
+
+#check each point
+i = 1
+array_dis_ang = {0 }
+Loop 50  side_index
+    next_index = $current_index + $i
+    Try 
+        ReportOtherItem $next_index 
+        next_X = $reportedValue2
+        next_Y = $reportedValue3
+        next_note = $navNote
+        next_lable = $navLabel
+       if $next_note == $current_note
+             echo touch next group at $next_index
+            Break 
+       Endif 
+    Catch 
+        echo touch next group at $next_index
+        Break 
+     EndTry 
+
+    stage_X =  ( $next_X - $current_X )
+    stage_Y =  ( $next_Y - $current_Y ) * ( cos  $start_angle )
+
+       IS_X  = $stage_X * $IS_xpx + $stage_Y * $IS_xpy + $Isxplus 
+       IS_Y = $stage_X * $IS_ypx + $stage_Y * $IS_ypy + $Isyplus   
+   
+   if $autoloader == 1
+     CallFunction Tomo_group_X::check_autofill
+  Endif 
+
+    SetImageShift $IS_X $IS_Y 1 1
+
+   Z_defocus = ( $next_Y - $current_Y ) * ( sin $exp_start_angle  ) 
+
+    if $use_focus_forZ == 1
+         Z_defocus_toset = $Z_defocus + $focusplus
+        SetDefocus $Z_defocus_toset 
+        AutoFocus
+        ReportDefocus
+        Z_diff = ( 1 / ( 1 + $Z_correct  ) ) * ( $reportedValue1 - $focusplus )
+     else
+        Z_defocus_toset =  ( 1 + $Z_correct  )   * $Z_defocus + $focusplus
+       SetDefocus $Z_defocus_toset 
+        Z_diff = $Z_defocus
+     Endif 
+
+     array_dis_ang = {$array_dis_ang $stage_Y $Z_diff $next_lable }
+     echo $array_dis_ang
+   #EarlyReturnNextShot 0
+    R
+    ReportLastFrameFile fram_name
+    WriteLineToFile log_file $cur_angle $fram_name $IS_X $IS_Y $next_lable $Z_diff R
+   FlushTextFile log_file 
+
+    filename @= mapS_$side_index.mrc
+    RemoveFile $filename 
+    SaveToOtherFile A MRC CUR $filename 
+    
+    P_align = { $P_align 0 $Z_diff  }
+    M_align = { $M_align 0 $Z_diff  }
+    P_align_X = { $P_align_X 0 $stage_X }
+    M_align_X = { $M_align_X 0 $stage_X }
+     i = $i + 1
+EndLoop
+group_num = $i - 1
+endfunction
+
+function TiltPlus
+   
+#tilt stage
+if $data_mode == 1 or $data_mode == 2
+   TiltTo $tiltangle
+   GoToLowDoseArea R
+Else
+   WalkUpTo $tiltangle
+   GoToLowDoseArea R
+   NormalizeAllLenses 
+   delay 2
+Endif 
+Delay 2
+ReportTiltAngle cur_angle
+#reset stage XY
+MoveStageTo $StageX $StageY
+    
+#setdefocus and image shift
+SetDefocus $focusplus
+SetImageShift $Isxplus $Isyplus 1 1
+
+#drift and tracking
+T
+AlignTo K
+ReportAlignShift
+dx = $reportedValue3
+dy = $reportedValue4
+dist = sqrt $dx * $dx + $dy * $dy
+echo $dist Alignment 
+if $dist > 150
+    echo $dist  ClearAlignment 
+    ClearAlignment 
+    V
+    AlignTo H
+    V
+    Copy A H
+    GoToLowDoseArea R
+    NormalizeAllLenses 
+   delay 3
+   T
+   AlignTo K
+ Endif 
+   T
+   Copy A K
+
+G
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+T
+Loop $drifttimes index
+            AlignTo K
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                         Delay 10
+                         T
+              Else
+                            echo Drift never got below $driftcrit; Skipping........
+                             break
+                Endif
+Endloop
+
+#store defocus
+   GoToLowDoseArea R
+ReportDefocus focusplus 
+#store image shifts
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+
+#record other point
+diff_angle = $cur_angle - $start_angle 
+j = 2
+Loop $group_num side_index
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+    stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+    if $plus_num > 7
+          filename @= mapP_$side_index.mrc
+          ReadOtherFile 0 P $filename 
+     Else          
+           filename @= mapS_$side_index.mrc
+          ReadOtherFile 0 P $filename
+       Endif 
+
+        curr_align_num = $side_index * 2
+        side_align_X = $P_align_X[$curr_align_num]
+        side_align_Y = $P_align[$curr_align_num]
+        curr_align_num = $curr_align_num  + 1
+       X_diffcorr = $P_align_X[$curr_align_num]
+       Z_diffcorr = $P_align[$curr_align_num]
+
+    X_error = 0.001 * $side_align_X
+     Z_error = -0.001 * $side_align_Y / ( sin $diff_angle )
+     echo Z_error $Z_error um
+
+     if ( $Z_error > 2  OR $Z_error < -2 ) AND $use_focus_forZ == 1
+            Z_error  = $Z_error * 0.5
+     Endif 
+    if $X_error > 2  OR $X_error < -2
+          X_error  = $X_error * 0.5
+     endif
+
+    X_diffcorr = $X_diffcorr  + $X_error 
+     Z_diffcorr = $Z_diffcorr  + $Z_error 
+
+    stage_X_new = $X_diffcorr  
+    stage_Y_new =  $stage_Y * ( cos $diff_angle  ) - $Z_diffcorr * ( sin $diff_angle )
+
+     IS_X  = $stage_X_new  * $IS_xpx + $stage_Y_new * $IS_xpy + $Isxplus 
+     IS_Y = $stage_X_new  * $IS_ypx + $stage_Y_new * $IS_ypy + $Isyplus 
+
+     Z_defocus = ( 1 + $Z_correct  )  *  ( $stage_Y * ( sin $diff_angle  ) + $Z_diffcorr * ( cos $diff_angle  )  ) + $focusplus
+
+    SetDefocus $Z_defocus
+
+    if $autoloader == 1
+       CallFunction Tomo_group_X::check_autofill
+    Endif 
+
+   SetImageShift $IS_X $IS_Y 1 1
+    #EarlyReturnNextShot 0
+     R
+    ReportLastFrameFile fram_name
+    WriteLineToFile log_file $cur_angle $fram_name $IS_X $IS_Y $next_lable $Z_error R
+    FlushTextFile log_file 
+
+    rest_num = MODULO $plus_num 6
+    if $rest_num == 5
+        filename @= mapP_$side_index.mrc
+        RemoveFile $filename 
+        SaveToOtherFile A MRC CUR $filename
+   Endif 
+        AlignTo P 1
+        ReportAlignShift
+        side_align_X = $reportedValue5
+        side_align_Y = $reportedValue6
+        curr_align_num = $side_index * 2
+        P_align_X[$curr_align_num] = $side_align_X
+        P_align[$curr_align_num] = $side_align_Y
+
+         if $M_align[$curr_align_num] == 0.0
+                M_align[$curr_align_num] = -1 * $side_align_Y
+          Endif 
+
+        curr_align_num = $curr_align_num  + 1
+         P_align_X[$curr_align_num] = $X_diffcorr  
+         P_align[$curr_align_num] = $Z_diffcorr 
+
+
+EndLoop
+echo record side points
+endfunction
+
+Function TiltMinus
+
+#tilt stage with backlash
+if $data_mode == 1 or $data_mode == 2  
+  Tiltbacklash_C =  $tiltangle + $Tiltbacklash
+  TiltTo $Tiltbacklash_C
+  TiltTo $tiltangle
+  GoToLowDoseArea  R
+ElseIf 
+   WalkUpTo $tiltangle
+   GoToLowDoseArea  R
+   NormalizeAllLenses 
+   delay 2
+Endif 
+
+ReportTiltAngle cur_angle
+
+#reset stage XY
+MoveStageTo $StageX $StageY
+Delay 2
+   
+#set defocus and image shift
+SetDefocus $focusmin
+SetImageShift $Isxminus $Isyminus 1 1
+
+#drift and tracking
+T
+AlignTo L
+ReportAlignShift
+dx = $reportedValue3
+dy = $reportedValue4
+dist = sqrt $dx * $dx + $dy * $dy
+echo $dist Alignment 
+if $dist > 150
+     echo $dist  ClearAlignment 
+    ClearAlignment 
+    V
+    AlignTo G
+   V
+   Copy A G
+    GoToLowDoseArea R
+   NormalizeAllLenses 
+   delay 3
+   T
+    AlignTo L
+Endif 
+   T
+    Copy A L
+
+G 
+if $autoloader == 1
+   CallFunction Tomo_group_X::check_autofill
+Endif 
+T
+Loop $drifttimes index
+            AlignTo L
+            ReportAlignShift
+            dx = $reportedValue3
+            dy = $reportedValue4
+            dist = sqrt $dx * $dx + $dy * $dy
+            rate = $dist / $driftinterval * 10
+            echo Rate = $rate A/Sec
+            if $rate < $driftcrit
+                           echo Drift is low enough after shot $index
+                            break 
+             Elseif $index < $drifttimes
+                         Delay 10
+                         T 
+              Else
+                            echo Drift never got below $driftcrit; Skipping........
+                             break
+                Endif
+Endloop
+
+#store defocus
+   GoToLowDoseArea R
+ReportDefocus focusmin 
+#store image shifts
+ReportImageShift
+Isxminus = $RepVal1
+Isyminus = $RepVal2
+
+#record other point
+diff_angle = $cur_angle - $start_angle 
+j = 2
+Loop $group_num side_index
+    stage_Y = $array_dis_ang[$j]
+     j = $j + 1
+   stage_Z = $array_dis_ang[$j]
+     j = $j + 1
+     next_lable = $array_dis_ang[$j]
+     j = $j + 1
+
+    if $minus_num  > 7
+          filename @= mapM_$side_index.mrc
+          ReadOtherFile 0 P $filename 
+     Else          
+           filename @= mapS_$side_index.mrc
+          ReadOtherFile 0 P $filename
+       Endif 
+
+        curr_align_num = $side_index * 2
+        side_align_X = $M_align_X[$curr_align_num]
+        side_align_Y = $M_align[$curr_align_num]
+        curr_align_num = $curr_align_num  + 1
+       X_diffcorr = $M_align_X[$curr_align_num]
+       Z_diffcorr = $M_align[$curr_align_num]
+
+    X_error = 0.001 * $side_align_X
+     Z_error = -0.001 * $side_align_Y / ( sin $diff_angle )
+     echo Z_error $Z_error um
+
+     if ( $Z_error > 2  OR $Z_error < -2 ) AND $use_focus_forZ == 1
+            Z_error  = $Z_error * 0.5
+     Endif 
+    if $X_error > 2  OR $X_error < -2
+          X_error  = $X_error * 0.5
+     endif
+
+     X_diffcorr = $X_diffcorr  + $X_error 
+     Z_diffcorr = $Z_diffcorr  + $Z_error 
+
+    stage_X_new = $X_diffcorr  
+    stage_Y_new =  $stage_Y * ( cos $diff_angle  ) - $Z_diffcorr * ( sin $diff_angle  )
+
+     IS_X  = $stage_X_new  * $IS_xpx + $stage_Y_new * $IS_xpy + $Isxminus 
+     IS_Y = $stage_X_new * $IS_ypx + $stage_Y_new * $IS_ypy + $Isyminus 
+
+    Z_defocus = ( 1 + $Z_correct  )  * ( $stage_Y * ( sin $diff_angle  ) + $Z_diffcorr * ( cos $diff_angle  )  )  + $focusmin
+
+    SetDefocus $Z_defocus
+    if $autoloader == 1
+      CallFunction Tomo_group_X::check_autofill
+    Endif 
+
+   SetImageShift $IS_X $IS_Y 1 1
+    #EarlyReturnNextShot 0
+    R
+    ReportLastFrameFile fram_name
+    WriteLineToFile log_file $cur_angle $fram_name $IS_X $IS_Y $next_lable $Z_error R
+    FlushTextFile log_file 
+
+    rest_num = MODULO $minus_num 6
+    if $rest_num == 5
+        filename @= mapM_$side_index.mrc
+        RemoveFile $filename 
+        SaveToOtherFile A MRC CUR $filename
+   Endif 
+        AlignTo P 1
+        ReportAlignShift
+        side_align_X = $reportedValue5
+        side_align_Y = $reportedValue6
+        curr_align_num = $side_index * 2
+        M_align_X[$curr_align_num] = $side_align_X
+        M_align[$curr_align_num] = $side_align_Y
+
+        curr_align_num = $curr_align_num  + 1
+         M_align_X[$curr_align_num] = $X_diffcorr 
+         M_align[$curr_align_num] = $Z_diffcorr 
+
+EndLoop
+     echo record side points
+endfunction
+EndMacro
+Macro	13
+MacroName Check_ActiveBTComp
+
+IS_distance = 5   #[um]
+IS_Mdistance = -1 *  $IS_distance   #[um]
+exp_time = 1
+BTtoIS = 1
+ISDelay = 0  #[s]
+
+#--------------------
+
+SuppressReports 
+SetExposure T $exp_time 
+SetBinning T 2
+
+Echo ===> Set IS to 0
+SetImageShift 0 0
+FixComaByCTF 1 1
+
+Echo ===> Applying $IS_distance um IS_X
+ImageShiftByMicrons $IS_distance 0 $ISDelay $BTtoIS 
+FixComaByCTF 1 1
+SetImageShift 0 0 $ISDelay $BTtoIS 
+
+Echo ===> Applying $IS_Mdistance um IS_X
+ImageShiftByMicrons $IS_Mdistance 0 $ISDelay $BTtoIS 
+FixComaByCTF 1 1
+SetImageShift 0 0 $ISDelay $BTtoIS 
+
+Echo ===> Applying $IS_distance um IS_Y
+ImageShiftByMicrons 0 $IS_distance $ISDelay $BTtoIS 
+FixComaByCTF 1 1
+SetImageShift 0 0 $ISDelay $BTtoIS 
+
+Echo ===> Applying $IS_Mdistance um IS_Y
+ImageShiftByMicrons 0 $IS_Mdistance $ISDelay $BTtoIS 
+FixComaByCTF 1 1
+SetImageShift 0 0 $ISDelay $BTtoIS 
+
+Echo ===> Applying $IS_distance um both IS_X and IS_Y
+ImageShiftByMicrons $IS_distance $IS_distance $ISDelay $BTtoIS 
+FixComaByCTF 1 1
+SetImageShift 0 0 $ISDelay $BTtoIS 
+
+Echo ===> Applying $IS_Mdistance um to IS_X and $IS_distance to IS_Y
+ImageShiftByMicrons $IS_Mdistance $IS_distance $ISDelay $BTtoIS 
+FixComaByCTF 1 1
+SetImageShift 0 0 $ISDelay $BTtoIS 
+
+Echo ===> Applying $IS_distance um to IS_X and $IS_Mdistance to IS_Y
+ImageShiftByMicrons $IS_distance $IS_Mdistance $ISDelay $BTtoIS 
+FixComaByCTF 1 1
+SetImageShift 0 0 $ISDelay $BTtoIS 
+
+Echo ===> Applying $IS_Mdistance um both IS_X and IS_Y
+ImageShiftByMicrons $IS_Mdistance $IS_Mdistance $ISDelay $BTtoIS 
+FixComaByCTF 1 1
+SetImageShift 0 0 $ISDelay $BTtoIS 
+EndMacro
+Macro	14
+MacroName Tomo_group_V_p1_BCK
+
+CallMacro 1
+
+RealignToNavItem 0 0 100 3 1
+
+ReportNavItem 
+current_index = $reportedValue1
+current_note = $navNote
+current_lable = $navLabel
+
+ReportGroupStatus
+if $reportedValue1 == 1
+   ChangeItemNote $current_index 1
+ElseIf $reportedValue1 == 2
+   ChangeItemNote $current_index 2
+Endif 
+
+ReportNavItem 
+current_index = $reportedValue1
+current_note = $navNote
+current_lable = $navLabel
+
+Delay 2 SEC
+
+if $current_note == $note_1 
+   CallFunction Tomo_group_V_p1::resetIS
+   V
+   CallFunction Tomo_group_V_p1::add_new_point_1
+   CallFunction Tomo_group_V_p1::save_image
+ElseIf  $current_note == $note_2 
+  CallFunction Tomo_group_V_p1::resetIS
+  V
+   CallFunction Tomo_group_V_p1::add_new_point_2
+   CallFunction Tomo_group_V_p1::save_image
+Else
+   echo else
+Endif 
+
+
+
+#-----functions-----
+Function resetIS
+V
+Copy A P
+Loop $resetIS_times  index
+   ResetImageShift 
+   Delay 2 SEC
+   V
+   AlignTo P
+
+   ReportAlignShift
+   dx = $reportedValue3
+   dy = $reportedValue4
+   dist = sqrt $dx * $dx + $dy * $dy
+ 
+   If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist 
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+   Endif 
+EndLoop 
+
+EndFunction 
+
+Function add_new_point_1
+ReportStageXYZ 
+current_X = $reportedValue1
+current_Y = $reportedValue2
+current_Z = $reportedValue3
+
+AddStagePosAsNavPoint $current_X $current_Y $current_Z 1
+new_point_index = $reportedValue1 
+ChangeItemNote $new_point_index 1
+ChangeItemLabel $new_point_index $current_lable 
+SetItemAcquire $new_point_index 1
+
+EndFunction 
+
+Function add_new_point_2
+ReportStageXYZ 
+current_X = $reportedValue1
+current_Y = $reportedValue2
+current_Z = $reportedValue3
+
+AddStagePosAsNavPoint $current_X $current_Y $current_Z 1
+new_point_index = $reportedValue1 
+ChangeItemNote $new_point_index 2
+ChangeItemLabel $new_point_index $current_lable 
+
+EndFunction 
+
+Function save_image
+   filename @= map_item$current_lable.mrc
+   RemoveFile $filename 
+   SaveToOtherFile A MRC CUR $filename
+
+EndFunction 
+EndMacro
+Macro	15
+MacroName Tomo_group_X_bck
+
+CallMacro 1
+
+#create angle serial
+angle_serial = {$start_angle }
+P_align = {0 }
+P_align_X = {0 }
+M_align = {0 }
+M_align_X = {0 }
+skip_point_P = {0 }
+skip_point_M = {0 }
+
+P_tilt_max = 0
+M_tilt_max = 0
+
+if $camera == 3
+   file_num_add = 1
+Else
+   file_num_add = 1000
+Endif 
+tilt_order = 1
+
+if $data_mode == 1 or  $data_mode ==  4
+  k = 1
+  Loop $tilttimes
+    #tilt plus1
+     tiltangle = $start_angle + $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+           P_tilt_max = $P_tilt_max + 1
+    Endif 
+    #tilt min1
+      tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+            M_tilt_max = $M_tilt_max + 1
+     Endif 
+    k = $k + 1
+    #tilt min2
+     tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+            M_tilt_max = $M_tilt_max + 1
+     Endif 
+    #tilt plus2
+      tiltangle = $start_angle +  $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+           P_tilt_max = $P_tilt_max + 1
+    Endif 
+    k = $k + 1
+  EndLoop
+ElseIf $data_mode == 2 
+  #tilt plus
+  k = 1
+  Loop $tilttimes
+     tiltangle = $start_angle + $step * $k
+     if $tiltangle <= $max_angle
+           angle_serial = {$angle_serial $tiltangle }
+           P_tilt_max = $P_tilt_max + 1
+    Endif 
+    k = $k + 1
+  EndLoop
+
+  #tilt min
+  k = 1
+  Loop $tilttimes
+     tiltangle = $start_angle -  $step * $k
+      if $tiltangle >= $min_angle
+            angle_serial = {$angle_serial $tiltangle }
+            M_tilt_max = $M_tilt_max + 1
+     Endif 
+    k = $k + 1
+  EndLoop
+endif
+
+echo $angle_serial
+#---before data collection----
+ReportNavItem 
+current_index = $reportedValue1
+current_X = $reportedValue2
+current_Y = $reportedValue3
+current_Z = $reportedValue4
+current_note = $navNote
+current_lable = $navLabel
+
+OnStopCallFunc Tomo_group_X::reset_all
+
+#-----data collection start------
+GoToLowDoseArea  R
+ReportMagIndex mag_index
+SpecimenToISMatrix $mag_index
+IS_xpx = -1 * $reportedValue1
+IS_xpy = -1 * $reportedValue2
+IS_ypx = -1 * $reportedValue3
+IS_ypy = -1 * $reportedValue4
+ISToSpecimenMatrix $mag_index
+SPS_xpx = -1 * $reportedValue1
+SPS_xpy = -1 * $reportedValue2
+SPS_ypx = -1 * $reportedValue3
+SPS_ypy = -1 * $reportedValue4
+ReportComaVsISmatrix BT_xpx BT_xpy BT_ypx BT_ypy
+ReportObjectiveStigmator stigma_ori_X stigma_ori_Y 
+ReportBeamTilt current_coma_ori_X current_coma_ori_Y 
+ReportDefocus cur_focus
+ReportTiltAngle cur_angle
+
+group_end = $#angle_serial
+plus_num = 0
+minus_num = 0
+   CallFunction Tomo_group_X::TiltZero
+
+#   echo P_align $P_align 
+#   echo M_align $M_align 
+
+k = 2
+tilt_num = $#angle_serial - 1
+
+Loop $tilt_num  tilt_num_index
+    group_end = $tilt_num  - $tilt_num_index + 1
+     tiltangle = $angle_serial[$k]
+     if $angle_serial[$k] > $angle_serial[$k-1]
+           #tilt plus
+           plus_num = $plus_num + 1
+              CallFunction Tomo_group_X::TiltPlus
+        
+     ElseIf  $angle_serial[$k] < $angle_serial[$k-1]
+           #tilt min
+           minus_num = $minus_num + 1
+              CallFunction Tomo_group_X::TiltMinus
+           
+    Endif 
+   echo P_align $P_align 
+   echo M_align $M_align 
+    k = $k + 1
+EndLoop
+#-----data collection end------
+#-----after data collection-----
+CallFunction Tomo_group_X::reset_all
+
+Function reset_all
+   GoToLowDoseArea R
+     SetImageShift 0 0
+     SetObjectiveStigmator $stigma_ori_X $stigma_ori_Y
+     SetBeamTilt $current_coma_ori_X $current_coma_ori_Y
+
+     SetDefocus $cur_focus
+
+     if $do_eucentric_fine == 1
+      TiltTo 0
+     Else
+      TiltTo $start_angle 
+     Endif 
+
+     if $data_mode == 1 or $data_mode == 2
+     WriteLineToFile log_file tomo_end at Nav_Item $next_lable
+     FlushTextFile log_file 
+     CloseTextFile log_file 
+    Endif 
+
+#   MoveStageTo 692.31 548.10   # empty (no sample ) position
+#   GoToLowDoseArea R
+#   NormalizeAllLenses 
+#   Delay 3
+#   RefineZLP 30
+EndFunction 
+
+Function check_Flash_FEG
+   ReportFEGBeamCurrent
+   IsFEGFlashingAdvised 1 flash_HT
+   if $flash_HT > 0
+      NextFEGFlashHighTemp 
+      LongOperation FF 0
+   endif
+   LongOperation FF 1
+   ReportFEGBeamCurrent FEG_beam_current
+EndFunction 
+
+Function check_autofill
+  Loop 10
+    AreDewarsFilling
+    Filling = $reportedValue1
+    If $Filling == 0 
+       Break
+    Endif
+    Delay 2 min
+  EndLoop
+EndFunction 
+
+Function resetIS_1
+Loop $resetIS_times  index
+   ResetImageShift 
+   Delay 2 SEC
+   V
+   AlignTo P
+
+   ReportAlignShift
+   dx = $reportedValue3
+   dy = $reportedValue4
+   dist = sqrt $dx * $dx + $dy * $dy
+ 
+   If $dist < $resetIS_limit 
+      echo resetimage shift error $dist  nm
+      break
+   ElseIf $index < $resetIS_times  
+      echo $dist 
+   Else
+      echo resetIS never got below $resetIS_limit  nm, Skipping........
+   Endif 
+EndLoop 
+
+EndFunction 
+
+function focus_value
+    target_focus =  RAND 
+    target_focus = ( $max_defocus - $min_defocus ) * $target_focus + $min_defocus
+    echo TargetDefocus is $target_focus
+    SetTargetDefocus $target_focus
+    SetAutofocusOffset 0
+EndFunction 
+
+Function tomo_group_V_p2
+
+ReportSpecimenShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+
+i = 1
+array_dis_ang = {0 }
+Loop $max_point_in_group 
+    next_index = $current_index + $i
+
+    Try 1
+        ReportOtherItem $next_index 
+        next_X = $reportedValue2
+        next_Y = $reportedValue3
+        next_Z = $reportedValue4
+        next_note = $navNote
+        next_lable = $navLabel
+       if $next_note == $current_note
+             echo touch next group at $next_index
+            Break 
+       Endif 
+    Catch 
+        echo touch next group at $next_index
+        Break 
+     EndTry 
+
+if $accurate_position == 1
+   filename @= map_item$next_lable.mrc
+   ReadOtherFile 0 P $filename
+   echo read file $filename
+Endif 
+    stage_X =  ( $next_X - $current_X )
+    stage_Y =  ( $next_Y - $current_Y ) * ( cos  $exp_start_angle  )
+
+       IS_X  = $stage_X * $IS_xpx + $stage_Y * $IS_xpy + $Isxplus
+       IS_Y = $stage_X * $IS_ypx + $stage_Y * $IS_ypy + $Isyplus
+
+if $accurate_position == 1
+       SetImageShift $IS_X $IS_Y 1 1
+       V
+   Delay 1 SEC
+   AlignTo P 1
+   Delay 1 SEC
+    ReportAlignShift
+    stage_X = ( $next_X + $reportedValue5 * 0.001 ) - $current_X 
+    stage_Y = ( $next_Y  + $reportedValue6 * 0.001 - $current_Y )  * ( cos  $exp_start_angle  ) 
+#   IS_X  = $IS_X  -  $reportedValue3 * 0.001
+#   IS_Y  = $IS_Y  -  $reportedValue4 * 0.001
+#   stage_X = $IS_X  * $SPS_xpx + $IS_Y  * $SPS_xpy 
+#   stage_Y = $IS_X  * $SPS_ypx + $IS_Y  * $SPS_ypy 
+Endif 
+    Z_diff  = ( $next_Y - $current_Y ) * ( sin $exp_start_angle  )
+
+    array_dis_ang = {$array_dis_ang $stage_Y $Z_diff $next_lable }
+
+    P_align = { $P_align 0 $Z_diff  }
+    M_align = { $M_align 0 $Z_diff  }
+
+    P_align_X = { $P_align_X 0 $stage_X }
+    M_align_X = { $M_align_X 0 $stage_X }
+
+    skip_point_P = { $skip_point_P 0 $P_tilt_max }
+    skip_point_M = { $skip_point_M 0 $M_tilt_max }
+
+    i = $i + 1
+EndLoop 
+group_num = $i - 1
+echo $array_dis_ang
+echo $P_align_X 
+SetImageShift $Isxplus $Isyplus 1 1
+EndFunction 
+
+Function TiltZero
+echo TiltZero
+if $flash_CFEG == 1
+  CallFunction Tomo_group_X::check_Flash_FEG
+  ReportMinuteTime flash_time
+ Endif 
+
+if $do_eucentric_fine  == 1
+ CallFunction Tomo_group_X::move_stage
+       Eucentricity 2
+       UpdateItemZ
+       ReportNavItem 
+       current_Z = $reportedValue4
+       tiltangle = $start_angle
+       CallFunction Tomo_group_X::check_stage
+Else
+ tiltangle = $start_angle
+ CallFunction Tomo_group_X::check_stage
+Endif 
+
+if $accurate_position == 1
+   filename @= map_item$current_lable.mrc
+   echo read file $filename
+   ReadOtherFile 0 P $filename
+
+   V
+CallFunction Tomo_group_X::resetIS_1
+Endif 
+
+CallFunction Tomo_group_X::tomo_group_V_p2
+
+ReportStageXYZ StageX StageY StageZ
+CallFunction Tomo_group_X::focus_value
+G
+G    
+ReportDefocus
+focusplus = $RepVal1
+focusmin = $RepVal1
+ReportFocusDrift  dx dy
+dist = sqrt  ( $dx * $dx + $dy * $dy )
+rate = $dist  * 10
+echo Rate = $rate A/Sec
+
+GoToLowDoseArea R
+SetImageShift 0 0
+#store image shifts
+if $move_stage_instead_IS  == 1
+   ResetImageShift 
+   ReportStageXYZ $StageX_M  $StageY_M
+   StageX_P = $StageX_M 
+   StageY_P = $StageY_M
+Endif 
+ReportImageShift
+Isxplus = $RepVal1
+Isyplus = $RepVal2
+Isxminus = $RepVal1
+Isyminus = $RepVal2
+ReportTiltAngle cur_angle 
+
+R
+   CtfFind A -0.3  -2 0 0 0 90 0 0 
+   PS_Pi = $reportedValue4 / 180
+   echo VPP   $PS_Pi Pi
+      ReportLastFrameFile fram_name full_path full_name
+
+      #on the fly data processing monitor
+      test_name @= $fram_name_test
+      OpenNewFile $test_name 
+      ReportCurrentFilename 1
+      fram_path = $reportedValue3
+      CloseFile $test_name 
+      RemoveFile $test_name 
+
+      tomo_log_name @= $fram_pathtomo_log.txt
+
+      Try 1
+         OpenTextFile log_file W 0 $tomo_log_name 
+      Catch 
+         OpenTextFile log_file A 0 $tomo_log_name 
+      EndTry 
+
+      WriteLineToFile log_file tomo_start at Nav_Item $current_lable 
+      WriteLineToFile log_file $cur_angle $fram_name $Isxplus $Isyplus $current_lable 0 1 $group_end R
+
+      file_num_add1 = $file_num_add + $start_angle + 90
+      fram_name @= Nav_lable_$current_lable_$file_num_add1_$start_angle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+
+EndFunction 
+
+function TiltPlus
+echo TiltPlus
+#tilt stage
+if $data_mode == 1 or $data_mode == 2
+   CallFunction Tomo_group_X::tiltup_by_step
+   GoToLowDoseArea R
+Else
+   WalkUpTo $tiltangle
+   GoToLowDoseArea R
+   NormalizeAllLenses 
+Endif 
+Delay 2
+ReportTiltAngle cur_angle
+
+SetDefocus $focusplus
+G
+ReportFocusDrift  dx dy
+dist = sqrt  ( $dx * $dx + $dy * $dy )
+rate = $dist  * 10
+echo Rate = $rate A/Sec
+
+
+GoToLowDoseArea R
+
+SetImageShift 0 0
+      tilt_order =  $tilt_order + 1
+      group_end = $group_end  - 1
+      R
+   CtfFind A -0.3  -2 0 0 0 90 0 0 
+   PS_Pi = $reportedValue4 / 180
+   echo VPP   $PS_Pi Pi
+      ReportLastFrameFile fram_name full_path full_name
+      WriteLineToFile log_file $cur_angle $fram_name $Isxplus $Isyplus $current_lable 0 $tilt_order $group_end R
+      FlushTextFile log_file 
+
+      file_num_add1 = $file_num_add + $tiltangle + 90
+      fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+ReportDefocus focusplus 
+EndFunction 
+
+Function TiltMinus
+echo TiltMinus
+#tilt stage with backlash
+if $data_mode == 1 or $data_mode == 2  
+  Tiltbacklash_C =  $tiltangle + $Tiltbacklash
+  TiltTo $Tiltbacklash_C
+  TiltTo $tiltangle
+  GoToLowDoseArea  R
+ElseIf 
+   WalkUpTo $tiltangle
+   GoToLowDoseArea  R
+   NormalizeAllLenses 
+   delay 2
+Endif 
+
+ReportTiltAngle cur_angle
+   
+#set defocus and image shift
+SetDefocus $focusmin
+G 
+ReportFocusDrift  dx dy
+dist = sqrt  ( $dx * $dx + $dy * $dy )
+rate = $dist  * 10
+echo Rate = $rate A/Sec
+
+GoToLowDoseArea R
+SetImageShift 0 0
+      tilt_order =  $tilt_order + 1
+      group_end = $group_end  - 1
+      R
+   CtfFind A -0.3  -2 0 0 0 90 0 0 
+   PS_Pi = $reportedValue4 / 180
+   echo VPP   $PS_Pi Pi
+      ReportLastFrameFile fram_name full_path full_name
+      WriteLineToFile log_file $cur_angle $fram_name $Isxplus $Isyplus $current_lable 0 $tilt_order $group_end R
+      FlushTextFile log_file 
+
+      file_num_add1 = $file_num_add + $tiltangle + 90
+      fram_name @= Nav_lable_$current_lable_$file_num_add1_$tiltangle_$full_name.jpg
+      SaveToOtherFile A JPEG JPEG $fram_name 
+ReportDefocus focusmin 
+EndFunction 
+
+Function tiltup_by_step
+echo tiltup_by_step
+ReportTiltAngle last_angle
+
+tilt_range = $tiltangle - $last_angle
+inter_step = 6
+SetTiltIncrement $inter_step 
+two_inter_step  = 2 * $inter_step 
+
+if $tilt_range > $two_inter_step  
+ Loop 100
+  Try 1
+   TiltUp 
+   Catch 
+      Delay 1 sec
+      TiltUp 
+   EndTry 
+   ReportTiltAngle last_angle
+   tilt_range = $tiltangle - $last_angle 
+  if $tilt_range < $inter_step 
+   break
+  Endif 
+ EndLoop 
+Endif 
+
+Try 1
+   TiltTo $tiltangle 
+Catch 
+   Delay 1 sec
+   TiltTo $tiltangle 
+EndTry 
+EndFunction  
+
+Function tiltdown_by_step
+echo tiltdown_by_step
+
+ReportTiltAngle last_angle
+
+tilt_range = $last_angle - $tiltangle - $Tiltbacklash 
+inter_step = 6
+SetTiltIncrement $inter_step 
+two_inter_step  = 2 * $inter_step 
+
+if $tilt_range > $two_inter_step  
+ Loop 100
+  Try 1
+         TiltDown 
+      Catch 
+         Delay 1 sec
+         TiltDown 
+      EndTry 
+      ReportTiltAngle last_angle
+      tilt_range = $last_angle - $tiltangle + 3
+  if $tilt_range < $inter_step 
+   break
+  Endif 
+ EndLoop 
+Endif 
+
+tilt_range = $tiltangle + $Tiltbacklash 
+
+Try 1
+   TiltTo $tilt_range 
+Catch 
+   Delay 1 sec
+   TiltTo $tilt_range 
+EndTry 
+
+Try 1
+   TiltTo $tiltangle 
+Catch 
+   Delay 1 sec
+   TiltTo $tiltangle 
+EndTry 
+EndFunction 
+
+Function check_stage
+echo check_stage
+
+if $backgroud_stage == 1
+check_times = 15
+Loop $check_times check_index
+  ReportTiltAngle cur_angle
+  diff_A = ABS ( $cur_angle - $tiltangle )
+  if $diff_A < 0.5
+     break
+   elseif $check_index < $check_times 
+      Delay 3 sec
+   Else
+      if $tiltangle  > $cur_angle 
+         CallFunction Tomo_group_X::tiltup_by_step
+      Else
+         CallFunction Tomo_group_X::tiltdown_by_step
+        Endif 
+   Endif 
+EndLoop 
+Else
+   ReportTiltAngle cur_angle
+  diff_A = ABS ( $cur_angle - $tiltangle )
+    if $diff_A > 0.5
+       if $tiltangle  > $cur_angle 
+         CallFunction Tomo_group_X::tiltup_by_step
+      Else
+         CallFunction Tomo_group_X::tiltdown_by_step
+        Endif 
+       Endif 
+Endif 
+CallFunction Tomo_group_X::move_stage
+EndFunction 
+
+Function move_stage
+
+ReportStageXYZ cur_stage_x cur_stage_y cur_stage_z
+abs_x = ABS ( $cur_stage_x  - $current_X  )
+abs_y = ABS ( $cur_stage_y  - $current_Y  )
+abs_z = ABS ( $cur_stage_z  - $current_Z  )
+if  ( $abs_x  > 0.5 ) or  ( $abs_y  > 0.5 )  or  ( $abs_z > 0.5 )
+     bck_current_X = $current_X   +  5
+    bck_current_Y = $current_Y   +  5
+   MoveStageTo $bck_current_X $bck_current_Y $current_Z 
+   MoveStageTo $current_X $current_Y 
+
+   MoveStageTo $current_X $current_Y $current_Z 
+#   echo move stage $abs_x  $abs_y  $abs_z 
+Endif 
+EndFunction 
+EndMacro
+Macro	16
+MacroName test_FEG_flash
+
+CallMacro 1
+
+Loop 5
+   CallFunction test_FEG_flash::FEG_flash
+   after_flash_time = 0
+   R
+   ReportLastFrameFile fram_name full_path full_name
+
+      #on the fly data processing monitor
+      test_name @= $fram_name_test
+      OpenNewFile $test_name 
+      ReportCurrentFilename 1
+      fram_path = $reportedValue3
+      CloseFile $test_name 
+      RemoveFile $test_name
+
+   tomo_log_name @= $fram_pathflash_log.txt
+
+      Try 1
+         OpenTextFile log_file W 0 $tomo_log_name 
+      Catch 
+         OpenTextFile log_file A 0 $tomo_log_name 
+      EndTry 
+      WriteLineToFile log_file flash_start at $flash_time beam_current $FEG_beam_current flash_type $flash_HT 
+      WriteLineToFile log_file $after_flash_time $fram_name 
+      FlushTextFile log_file
+      after_flash_time = $after_flash_time + 10
+      Delay 10 min
+
+      Loop 6
+         R
+         WriteLineToFile log_file $after_flash_time $fram_name 
+         FlushTextFile log_file
+         after_flash_time = $after_flash_time + 10
+         Delay 10 min
+      EndLoop 
+
+      R
+      WriteLineToFile log_file $after_flash_time $fram_name
+      ReportMinuteTime flash_time
+      WriteLineToFile log_file flash_end at $flash_time
+      FlushTextFile log_file
+      CloseTextFile log_file
+EndLoop 
+
+SetColumnOrGunValve 0
+
+Function FEG_flash
+   IsFEGFlashingAdvised 1 flash_HT
+   if $flash_HT > 0
+      NextFEGFlashHighTemp 
+      LongOperation FF 0
+   Else
+      LongOperation FF 1
+   Endif 
+   ReportFEGBeamCurrent FEG_beam_current
+   ReportMinuteTime flash_time
+EndFunction 
+EndMacro
+Macro	17
+
+MacroName report_clock
+exposures = { 0.3 0.6 1 2 3 4 5 6 7 8 9 10 }
+
+j = 1
+Loop 1
+  i = 1
+  Loop 12
+     Echo start $exposures[$i] s
+     Loop 3
+        SetExposure R $exposures[$i]
+        ResetClock 
+        R
+        ReportClock 
+     EndLoop 
+     i = $i + 1
+     j = $j + 1
+  EndLoop 
+echo end
+EndLoop 
+EndMacro
+Macro	60
+ReportFEGBeamCurrent
+EndMacro
+Macro	61
+CtfFind A -0.3  -2 0 0 0 90 0 0 
+EndMacro
+Macro	62
+ReportTiltAxisOffset
+EndMacro
+Macro	63
+SetColumnOrGunValve 0
+EndMacro
+Macro	64
+ReportMeanCounts A
+EndMacro

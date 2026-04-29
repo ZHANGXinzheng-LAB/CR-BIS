@@ -1,0 +1,12 @@
+Copyright (c) 2024-2026 Xinzheng Zhang, Xiaojun Huang & Qi Yang, Institute of Biophysics, Chinese Academy of Sciences, Beijing 100101, China
+
+This software is provided for non-commercial academic research use **only**.
+Commercial use, including but not limited to use in the development of commercial products or services, is strictly prohibited.
+
+The software is protected by a pending patent application (202510925138.0).
+Any party interested in obtaining a license for commercial use must contact the copyright holder for separate commercial licensing terms.
+
+This software is distributed "AS IS", WITHOUT WARRANTY OF ANY KIND, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement. 
+In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+For academic non-commercial users: you are free to use, modify, and distribute this software for academic research purposes, provided that you cite the original paper (see [DOI or reference]) and retain this license notice in all copies or substantial portions of the software.
