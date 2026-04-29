@@ -49,13 +49,13 @@ CR-BIS/
 │   		├── tomo_log_edit.py
 │			│	# updated information from *log_sep.txt file and modifies tomo_log.txt
 │   		├── mdoc.py    # generate the .mdoc file for each tilt series
-│          └── tomo_log.txt  #  tomo_log.txt example
+│           └── tomo_log.txt  #  tomo_log.txt example
 │   └── K3/ 
 │   		├── group_single_point_tif_MotionCorr2_parallel_v2_tiffile.py
 │   		├── modi_tif_log,py
 │   		├── modi_tomo_log.py
-│          ├── mdoc.py
-│          └── tomo_log.txt  #  tomo_log.txt example
+│           ├── mdoc.py
+│           └── tomo_log.txt  #  tomo_log.txt example
 └── CR-BIS_User_Guide_v2.0.pdf		# Full illustrated manual
     
 
